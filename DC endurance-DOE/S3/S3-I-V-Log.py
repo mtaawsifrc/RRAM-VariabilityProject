@@ -1,0 +1,115 @@
+
+"""
+Created on Sun Dec 22 14:48:05 2024
+
+@author: moazz
+"""
+
+import os
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+# Set the paths to the folders containing CSV files
+folder_path1 = 'form'
+folder_path2 = 'edn2'
+folder_path3 = 'edn2'
+folder_path4 = '1st'
+folder_path5 = r'1st reset'
+# Get a list of all CSV files in the folders
+csv_files1 = [f for f in os.listdir(folder_path1) if f.endswith('.csv')]
+csv_files2 = [f for f in os.listdir(folder_path2) if f.endswith('.csv')]
+csv_files3 = [f for f in os.listdir(folder_path3) if f.endswith('.csv')]
+csv_files4 = [f for f in os.listdir(folder_path4) if f.endswith('.csv')]
+csv_files5 = [f for f in os.listdir(folder_path5) if f.endswith('.csv')]
+
+# Set plot appearance properties
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["font.serif"] = "Arial"
+plt.rcParams["font.size"] = 30
+plt.rcParams["mathtext.fontset"] = "dejavuserif"
+plt.rcParams['xtick.direction'] = 'in'
+plt.rcParams['ytick.direction'] = 'in'
+plt.rcParams['xtick.major.size'] = 5
+plt.rcParams['ytick.major.size'] = 5
+plt.rcParams['xtick.major.width'] = 3.0
+plt.rcParams['ytick.major.width'] = 3.0
+plt.rcParams['axes.linewidth'] = 3
+plt.rcParams['axes.unicode_minus'] = False
+
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.tick_params(
+    bottom=True, top=True,
+    left=True, right=True)
+ax.tick_params(
+    labelbottom=True, 
+    labelleft=True)
+
+# Add minor ticks
+ax.minorticks_on()
+ax.tick_params(which='minor', length=2, width=0.75)
+
+# Set y-axis to logarithmic scale
+ax.set_yscale('log')
+
+# Plot data from the first folder (Forming-Figure) - Red
+for csv_file in csv_files1:
+    csv_path = os.path.join(folder_path1, csv_file)
+    df = pd.read_csv(csv_path, skiprows=252, usecols=[1, 2], header=None)
+    legend_label = os.path.splitext(csv_file)[0] + ' (form)'
+    plt.plot(df[1], df[2], label='Electroforming', marker='o', markersize=0.5, linewidth=2, color='red')
+
+# # Plot data from the second folder (edn2) - Gray
+# for csv_file in csv_files2:
+#     csv_path = os.path.join(folder_path2, csv_file)
+#     df = pd.read_csv(csv_path, skiprows=145, nrows=202, usecols=[1, 2], header=None)
+#     legend_label = os.path.splitext(csv_file)[0] + ' (edn2)'
+#     plt.plot(df[1], df[2]*-1, marker='x', markersize=0.2, linewidth=0.5, color='gray')
+
+# # Plot data from the third folder (edn2) - Gray
+# for csv_file in csv_files3:
+#     csv_path = os.path.join(folder_path3, csv_file)
+#     df = pd.read_csv(csv_path, skiprows=1051, nrows=403, usecols=[1, 2], header=None)
+#     legend_label = os.path.splitext(csv_file)[0] + ' (edn2)'
+#     plt.plot(df[1], df[2], marker='s', markersize=0.2, linewidth=0.5, color='gray')
+
+# Plot data from the fourth folder (1st cycle) - Blue
+for csv_file in csv_files4:
+    csv_path = os.path.join(folder_path4, csv_file)
+    df = pd.read_csv(csv_path, skiprows=1051, nrows=803, usecols=[1, 2], header=None)
+    legend_label = os.path.splitext(csv_file)[0] + ' (1st)'
+    plt.plot(df[1], df[2], label='Set-Reset', marker='s', markersize=1, linewidth=2, color='blue')
+
+# Plot data from thefolder 1st reset
+for csv_file in csv_files5:
+    csv_path = os.path.join(folder_path5, csv_file)
+    df = pd.read_csv(csv_path, skiprows=252, usecols=[1, 2], header=None)
+    plt.plot(df[1], df[2]*-1, label='1st Reset', marker='o', markersize=1, linewidth=2, color='Orange')
+ax.set_title('Oxygen rich sample', fontsize=30)
+# Add labels and legend
+plt.ylabel('Current (A)')
+plt.xlabel('Voltage (V)')
+
+# Modify the x and y axis range
+plt.ylim(5e-9, 1e-2)
+plt.xlim(-3, 6, 1)
+
+# Customize the legend
+legend = plt.legend(fontsize=24, loc='lower right',bbox_to_anchor=(0.92, 0.05))
+legend.get_frame().set_visible(False)  # Remove legend frame
+
+#plt.text(3.8, 4e-3, "Oxygen rich sample", fontsize=20, ha='center', va='center')
+#plt.text(4.3, 4e-3, "(O:35%, P:75W)", fontsize=20, ha='center', va='center')
+
+plt.text(1.7, 1e-4, "SET V", fontsize=22, ha='center', va='center', color='blue')
+plt.text(-1.5, 1e-5, "RESET V", fontsize=22, ha='center', va='center', color='blue')
+
+plt.text(4.2, 1e-3, "Forming Voltage", fontsize=22, ha='center', va='center', color='red')
+
+plt.text(1.2, 5e-6, "HRS", fontsize=22, ha='center', va='center', color='green')
+plt.text(0.4, 1e-3, "LRS", fontsize=22, ha='center', va='center', color='green')
+
+plt.text(-1, 4e-3, "1st Reset Current", fontsize=22, ha='center', va='center', color='orange')
+# Save and show the plot
+output_image_path = 'I-V-S3--.jpg'
+plt.savefig(output_image_path, format='jpg', dpi=1200, bbox_inches='tight')
+plt.show()

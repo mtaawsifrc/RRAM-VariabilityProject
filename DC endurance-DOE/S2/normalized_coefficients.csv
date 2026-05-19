@@ -1,0 +1,46 @@
+Equation,Label,Coefficient,Normalized (%)
+Reset Current (I),Oxygen,2.21,100.0
+Reset Current (I),Oxygen^2,-0.017,-0.7692307692307693
+Reset Current (I),Power,0.00855,0.38687782805429866
+Reset Current (I),Power^2,0.00037,0.0167420814479638
+Reset Current (I),Oxygen*Power,1.5e-05,0.0006787330316742082
+Reset Current (I),sdsa,-0.000388,-0.01755656108597285
+Set Voltage (V),Oxygen,2.321975,100.0
+Set Voltage (V),Oxygen^2,-0.273,-11.757232528343328
+Set Voltage (V),Power,-0.046,-1.9810721476329416
+Set Voltage (V),Power^2,0.00139,0.05986283228716933
+Set Voltage (V),Oxygen*Power,0.001077,0.046382928326101705
+Set Voltage (V),sdsa,8e-06,0.0003445342865448594
+Set Voltage (V),sadasd,-0.000127,-0.0054694817988996435
+HRS Current (I),Oxygen,0.000104,100.0
+HRS Current (I),Oxygen^2,-1e-05,-9.615384615384617
+HRS Current (I),Power,0.0,0.0
+HRS Current (I),Power^2,0.0,0.0
+HRS Current (I),Oxygen*Power,0.0,0.0
+HRS Current (I),sdsa,0.0,0.0
+O/Ta Ratio,Oxygen,1.86,100.0
+O/Ta Ratio,Oxygen^2,0.421,22.634408602150536
+O/Ta Ratio,Power,-0.0247,-1.3279569892473118
+O/Ta Ratio,Power^2,-0.00408,-0.21935483870967742
+O/Ta Ratio,Oxygen*Power,9.5e-05,0.00510752688172043
+O/Ta Ratio,sdsa,-0.000537,-0.028870967741935483
+Deposition Rate (A/S),Oxygen,1.3789,55.934609767970144
+Deposition Rate (A/S),Oxygen^2,0.7412,30.066526042511764
+Deposition Rate (A/S),Power,-2.4652,-100.0
+Deposition Rate (A/S),Power^2,1.6313,66.17312996917086
+Deposition Rate (A/S),Oxygen*Power,-0.5345,-21.681810806425442
+Custom Line 1,Oxygen,0.5,100.0
+Custom Line 1,Oxygen^2,-0.1,-20.0
+Custom Line 1,Power,0.02,4.0
+Custom Line 1,Power^2,-0.01,-2.0
+Custom Line 1,Oxygen*Power,0.001,0.2
+Custom Line 2,Oxygen,3.45,100.0
+Custom Line 2,Oxygen^2,-1.23,-35.65217391304348
+Custom Line 2,Power,0.87,25.217391304347824
+Custom Line 2,Power^2,0.045,1.3043478260869565
+Custom Line 2,Oxygen*Power,-0.034,-0.9855072463768115
+Custom Line 3,Oxygen,-2.1,-100.0
+Custom Line 3,Oxygen^2,1.5,71.42857142857143
+Custom Line 3,Power,-0.45,-21.428571428571427
+Custom Line 3,Power^2,0.25,11.904761904761903
+Custom Line 3,Oxygen*Power,-0.15,-7.142857142857142

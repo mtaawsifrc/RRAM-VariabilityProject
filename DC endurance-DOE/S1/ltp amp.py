@@ -1,0 +1,51 @@
+
+
+import os
+import csv
+import re
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+
+
+# Read the CSV files
+df2 = pd.read_csv('forming.csv')
+
+
+
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["font.serif"] = "Times New Roman"
+plt.rcParams["font.size"] = 8
+plt.rcParams["mathtext.fontset"] = "dejavuserif"
+plt.rcParams['xtick.direction'] = 'in'
+plt.rcParams['ytick.direction'] = 'in'
+plt.rcParams['xtick.major.size'] = 4
+plt.rcParams['ytick.major.size'] = 4
+plt.rcParams['xtick.major.width'] = 1.0
+plt.rcParams['ytick.major.width'] = 1.0
+plt.rcParams['axes.linewidth'] = 1
+plt.rcParams['axes.unicode_minus'] = False
+
+fig, ax = plt.subplots(figsize=(3.3, 2.5))
+ax.tick_params(bottom=True,  left=True, )
+ax.tick_params(labelbottom=True, labelleft=True)
+
+
+
+ax.plot(df2['V1-form'], df2['I1-form']*1e6,'-ok', label='Electroforming', color='blue', markersize=1)
+ax.plot(df2['V1'], df2['I1']*1e6,'-ok', label='Set-Reset', color='red', markersize=1)
+
+ax.legend(loc="lower right", ncol=3, fontsize= 7)
+
+
+# Add x and y labels
+ax.set_xlabel('Voltage (V)')
+ax.set_ylabel('Current (uA)')
+#ax.set_ylim(-.3, .3)
+plt.xticks(np.arange(-3, 7, 1))
+ax.set_xlim(-3, 7)
+ax.set_ylim(-800, 600)
+plt.yticks(np.arange(-800, 600, 100))
+
+plt.savefig('I-V.jpeg', dpi=600, facecolor='w', edgecolor='w', transparent=False,
+            orientation='portrait', bbox_inches='tight')
