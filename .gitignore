@@ -1,0 +1,26 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# HSPICE / pVA generated artifacts
+*.ic0
+*.lis
+*.log
+*.mt0
+*.pa0
+*.raw
+*.st0
+*.sw0
+*.tr0
+*.valog
+*.pvadir/
+
+# Local generated result folders
+step01_*/
+step02_*/
+step03_*/
+step03_*_baseline/
+
+# Benchmark simulation outputs; keep source decks/scripts trackable.
+RRAM_StanfordModel/Benchmarks/my_benchmark/BUTTERFLY.png
+RRAM_StanfordModel/Benchmarks/my_benchmark/BUTTERFLY_parsed.csv
