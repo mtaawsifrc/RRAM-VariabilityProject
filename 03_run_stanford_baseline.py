@@ -68,6 +68,8 @@ def model_parameter_rows(args):
         ("Rth", args.Rth),
         ("tox", args.tox),
         ("deltaGap0", args.deltaGap0),
+        ("set_compliance_current", args.set_compliance_current),
+        ("auto_set_compliance_current", args.auto_set_compliance_current),
         ("tstep", args.tstep),
         ("butterfly_set_time", args.butterfly_set_time),
         ("butterfly_zero_after_set_time", args.butterfly_zero_after_set_time),
@@ -350,6 +352,62 @@ def label_butterfly_branches(sim):
     sim["branch"] = np.where(sim["voltage_V"] >= 0, "SET", "RESET")
     sim["butterfly_sequence_index"] = np.arange(1, len(sim) + 1)
     return sim
+
+
+def estimate_set_compliance_current(exp_fit):
+    exp = exp_fit.copy()
+    exp["voltage_V"] = pd.to_numeric(exp["voltage_V"], errors="coerce")
+    exp["median_abs_current_A"] = pd.to_numeric(
+        exp["median_abs_current_A"], errors="coerce"
+    )
+
+    set_exp = exp[
+        exp["branch"].astype(str).eq("SET")
+        & np.isfinite(exp["voltage_V"])
+        & np.isfinite(exp["median_abs_current_A"])
+        & (exp["voltage_V"] > 0)
+        & (exp["median_abs_current_A"] > 0)
+    ]
+    if set_exp.empty:
+        return np.nan
+
+    vmax = set_exp["voltage_V"].max()
+    tail = set_exp[set_exp["voltage_V"] >= 0.8 * vmax]
+    if tail.empty:
+        tail = set_exp.nlargest(max(3, len(set_exp) // 10), "voltage_V")
+
+    return float(tail["median_abs_current_A"].median())
+
+
+def apply_set_compliance(sim, compliance_current):
+    if compliance_current is None or not np.isfinite(compliance_current):
+        return sim
+    if compliance_current <= 0:
+        return sim
+
+    sim = sim.copy()
+    if "unclamped_current_A" not in sim.columns:
+        sim["unclamped_current_A"] = sim["current_A"]
+        sim["unclamped_abs_current_A"] = sim["abs_current_A"]
+
+    mask = (sim["voltage_V"] >= 0) & (sim["abs_current_A"] > compliance_current)
+    signs = np.sign(sim.loc[mask, "current_A"].to_numpy(float))
+    signs[signs == 0] = 1.0
+
+    sim["set_compliance_current_A"] = compliance_current
+    sim["set_compliance_applied"] = False
+    sim.loc[mask, "current_A"] = signs * compliance_current
+    sim.loc[mask, "abs_current_A"] = compliance_current
+    sim.loc[mask, "set_compliance_applied"] = True
+    return sim
+
+
+def resolve_set_compliance_current(args, exp_fit):
+    if args.set_compliance_current is not None:
+        return args.set_compliance_current
+    if args.auto_set_compliance_current:
+        return estimate_set_compliance_current(exp_fit)
+    return None
 
 
 def interpolate_sim_to_exp(sim, exp_branch):
@@ -746,11 +804,22 @@ def main():
         default=0.1,
         help="Read voltage magnitude used for HRS/LRS ratio diagnostics.",
     )
+    p.add_argument(
+        "--set-compliance-current",
+        type=float,
+        default=None,
+        help="Clamp positive-voltage simulated SET current magnitude to this compliance current.",
+    )
+    p.add_argument(
+        "--auto-set-compliance-current",
+        action="store_true",
+        help="Estimate SET compliance from the measured high-voltage SET plateau and clamp simulated SET current.",
+    )
 
-    p.add_argument("--gap-min", type=float, default=2e-10)
-    p.add_argument("--gap-max", type=float, default=18e-10)
-    p.add_argument("--g0", type=float, default=0.25e-9)
-    p.add_argument("--V0", type=float, default=0.25)#0.25
+    p.add_argument("--gap-min", type=float, default=5e-10)#2e-10
+    p.add_argument("--gap-max", type=float, default=15e-10)#18e-10
+    p.add_argument("--g0", type=float, default=0.35e-9)#0.25e-9
+    p.add_argument("--V0", type=float, default=0.35)#0.25
     p.add_argument("--Vel0", type=float, default=10.0)
     p.add_argument("--I0", type=float, default=1e-3)
     p.add_argument("--beta", type=float, default=0.8)
@@ -783,6 +852,7 @@ def main():
     if "butterfly_sequence_index" in exp_fit.columns:
         exp_fit = exp_fit.sort_values("butterfly_sequence_index")
     exp_fit.to_csv(output_dir / "03_experiment_fit_window.csv", index=False)
+    set_compliance_current = resolve_set_compliance_current(args, exp_fit)
 
     va_path = args.va.expanduser().resolve()
 
@@ -818,9 +888,12 @@ def main():
         sim = require_sim_points(label, sim, lis_path, runlog)
         if args.deck_mode == "butterfly":
             sim = label_butterfly_branches(sim)
+            sim = apply_set_compliance(sim, set_compliance_current)
             sim_path = output_dir / "03_butterfly_sim.csv"
         else:
             sim["branch"] = label
+            if label == "SET":
+                sim = apply_set_compliance(sim, set_compliance_current)
             sim_path = output_dir / f"03_{label.lower()}_sim.csv"
         sim.to_csv(sim_path, index=False)
 
