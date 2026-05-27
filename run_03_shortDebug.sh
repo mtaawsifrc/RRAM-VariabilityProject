@@ -4,9 +4,9 @@ python3 03_fit_stanford_rram_hspice.py \
   --output-dir step03_S1_fit_debug \
   --hspice-bin hspice \
   --compliance-current 5e-4 \
-  --compliance-weight 0.03 \
+  --compliance-weight 0.02 \
   --switch-current-threshold 1e-4 \
-  --max-sim-current 5e-3 \
+  --max-sim-current 2e-3 \
   --pwl-dt 1e-6 \
   --skip-sensitivity \
   --stage1-rounds 2 --stage1-candidates 8 \

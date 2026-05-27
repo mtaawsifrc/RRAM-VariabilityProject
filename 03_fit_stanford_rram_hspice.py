@@ -144,19 +144,19 @@ class EvalResult:
 def default_parameter_specs(include_fmin: bool = False) -> dict[str, ParameterSpec]:
     specs = {
         "I0": ParameterSpec(
-            "I0", 1000e-6, 1e-12, 1e-2, True, True,
+            "I0", 5e-4, 1e-10, 8e-3, True, True,
             "current prefactor in I0*exp(-gap/g0)*sinh(V/V0)",
         ),
         "g0": ParameterSpec(
-            "g0", 0.25e-9, 0.03e-9, 2.0e-9, True, True,
+            "g0", 0.25e-9, 0.03e-9, 1.2e-9, True, True,
             "gap exponential scale; controls memory-window amplification",
         ),
         "V0": ParameterSpec(
-            "V0", 0.25, 0.03, 3.0, True, True,
+            "V0", 0.25, 0.03, 2.0, True, True,
             "voltage scale in sinh(V/V0); controls branch curvature",
         ),
         "Vel0": ParameterSpec(
-            "Vel0", 10.0, 1e-10, 20.0, True, True,
+            "Vel0", 10.0, 1e-8, 18.0, True, True,
             "kinetic prefactor for gap evolution; sweep-protocol dependent",
         ),
         "beta": ParameterSpec(
