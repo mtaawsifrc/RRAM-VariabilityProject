@@ -7,7 +7,7 @@ python3 03_fit_stanford_rram_hspice.py \
   --va /home/hm5701/Documents/PINN/Variability_Project/rram_v_1_0_0_hspice.va \
   --output-dir step03_S1_fit \
   --hspice-bin hspice \
-  --compliance-current 0 \
+  --compliance-current 5e-4 \
   --pwl-dt 1e-6
 
 # Example 2: shorter debug run
