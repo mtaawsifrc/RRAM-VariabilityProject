@@ -1,0 +1,21 @@
+* TaO-Fit HSPICE transient sweep template
+.option post=2 ingold=2 numdgt=8 nomod measform=3
+.hdl "{{VA_PATH}}"
+.param I0={{I0}} g0={{G0}} V0={{V0}} Vel0={{VEL0}} gamma0={{GAMMA0}}
+.param beta={{BETA}} Ea={{EA}} Rth={{RTH}} F_min={{F_MIN}}
+.param gap_min={{GAP_MIN}} gap_max={{GAP_MAX}} gap_ini={{GAP_INI}}
+.param tox={{TOX}} a0={{A0}} T_ini={{T_INI}}
+Vsrc TE 0 PWL(
+{{PWL_BODY}}
++ )
+Xrram TE BE rram_v_1_0_0
++ I0=I0 g0=g0 V0=V0 Vel0=Vel0 gamma0=gamma0
++ beta=beta Ea=Ea Rth=Rth F_min=F_min
++ gap_min=gap_min gap_max=gap_max gap_ini=gap_ini
++ tox=tox a0=a0 T_ini=T_ini model_switch=0
+Gclamp BE 0 cur='((abs(I(Vsrc))>{{I_CC}})?sign(I(Vsrc))*{{I_CC}}:0)'
+.tran 1n {{T_END}} uic
+.probe tran V(TE) I(Vsrc)
+.print tran V(TE) I(Vsrc)
+.end
+
