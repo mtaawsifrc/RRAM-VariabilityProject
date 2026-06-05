@@ -1,6 +1,6 @@
 clear; clc; close all;
 
-filename = "butterfly.log";   % change if your log name is different
+filename = "butterfly_array.log";   % change if your log name is different
 
 txt = fileread(filename);
 lines = splitlines(txt);
