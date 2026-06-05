@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 python3 "$ROOT/02_select_device_representative_curve.py" \
+  --device-id A8-04-4um-02 \
   --step01-dir "$ROOT/step01_S1" \
   --output-dir "$ROOT/step02_S1" \
   --representative-mode medoid-cycle \

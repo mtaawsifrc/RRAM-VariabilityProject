@@ -3,9 +3,9 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-INPUT="$ROOT/step02_S1/S1_B6-01-4um-12_representative_curve_FIXED.csv"
+INPUT="$ROOT/step02_S1/S1_A8-04-4um-02_representative_curve_FIXED.csv"
 CFG="$ROOT/stanford_fit/config/default_config.yaml"
-OUT="$ROOT/results/S1_taofit_$(date +%Y%m%d_%H%M%S)"
+OUT="$ROOT/results/S1_taofit_S1_A8-04-4um-02_$(date +%Y%m%d_%H%M%S)"
 
 mkdir -p "$OUT"
 echo "[run] input=$INPUT"
