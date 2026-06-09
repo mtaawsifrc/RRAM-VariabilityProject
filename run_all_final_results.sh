@@ -9,6 +9,14 @@ CONFIG="${CONFIG:-$ROOT/stanford_fit/config/default_config.yaml}"
 HSPICE_CMD="${HSPICE_CMD:-hspice}"
 MATLAB_BIN="${MATLAB_BIN:-matlab}"
 
+# HSPICE FlexLM: the first server in the site list (waynelic01) is unresponsive,
+# so every hspice call waits ~20s for it to time out before falling back -- that
+# alone turns each eval from ~0.4s into ~40s. Pin the live server(s) first and
+# cap the dead-server connect timeout to 0.3s so a future outage costs little.
+export SNPSLMD_LICENSE_FILE="${SNPSLMD_LICENSE_FILE:-27020@waynelic02.ad.wayne.edu,27020@waynelic03.ad.wayne.edu}"
+export LM_LICENSE_FILE="${LM_LICENSE_FILE:-$SNPSLMD_LICENSE_FILE}"
+export FLEXLM_TIMEOUT="${FLEXLM_TIMEOUT:-300000}"
+
 RUN_BASELINE="${RUN_BASELINE:-1}"
 RUN_TAOFIT="${RUN_TAOFIT:-1}"
 
@@ -21,6 +29,9 @@ if [[ "$#" -gt 0 ]]; then
 else
   CONDITIONS=(S1 S2 S3 S4 S5 S6 S7 S8 S9 S10 S11 S12)
 fi
+
+echo "=== Deleting previous results ==="
+rm -rf "$ROOT"/results "$ROOT"/step01_* "$ROOT"/step02_* "$ROOT"/step03_*
 
 SUMMARY_DIR="$ROOT/results"
 SUMMARY="$SUMMARY_DIR/final_results_summary.csv"
@@ -91,3 +102,16 @@ done
 echo
 echo "All requested conditions completed."
 echo "Summary: $SUMMARY"
+
+echo
+echo "=== Publication tables + figures ==="
+python3 "$ROOT/04_publication_summary.py"
+
+echo "=== Ablation harness ==="
+python3 "$ROOT/05_run_ablation.py" "${CONDITIONS[@]}"
+
+echo "=== Cross-cycle variability (bootstrap CIs) ==="
+python3 "$ROOT/06_run_variability.py" --bootstrap-n 200 "${CONDITIONS[@]}"
+
+echo
+echo "Publication pipeline complete. Artefacts in $ROOT/results/{publication,ablation,variability}"

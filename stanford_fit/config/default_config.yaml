@@ -28,7 +28,7 @@ hspice_timeout_s: 60
 keep_failed_hspice: 1
 # Fisher identifiability report is informational only and costly with the
 # polarity-split model; skip it unless explicitly requested.
-run_fisher: 0
+run_fisher: 1
 # Polarity-split fit: SET and RESET branches have independent
 # V0/gamma0/Ea/F_min/Vel0/gap_max/gap_ini (suffixes _set/_res); I0,g0,Rs shared.
 # Leave active_params unset to use the default split set:
@@ -37,7 +37,27 @@ run_fisher: 0
 # active_params: I0,g0,Rs,V0_set,V0_res,...
 bo_n_init: 48
 bo_n_iter: 160
-bootstrap_n: 0
 rng_seed: 0
 hspice_bin: hspice
 va_path: ../templates/rram_v_1_0_0_hspice.va
+
+# --- Ablation hooks (driven by 05_run_ablation.py; leave at defaults here) ---
+# prior_mode: physics  -> physics-informed priors (default)
+#             plain     -> uninformative priors (sigma=Inf): same model/data/
+#                          budget but no physics guidance
+prior_mode: physics
+# defaults_only: 1 skips Stage 3/4 optimization and returns the prior mean
+# (the un-tuned physics initial guess).
+defaults_only: 0
+
+# --- Cross-cycle variability (driven by 06_run_variability.py) ---
+# Stage 5 LOCO + cluster bootstrap require a per-cycle ensemble CSV passed via
+# main_fit's 4th argument (built by 02b_build_cycle_ensemble.py). With only the
+# single representative curve these stay off and the CIs remain NaN.
+run_loco: 0
+run_bootstrap: 0
+bootstrap_n: 120          # bootstrap resamples for the 95% parameter CIs
+bootstrap_bo_n_init: 8    # reduced BO budget per bootstrap/LOCO refit (speed)
+bootstrap_bo_n_iter: 24
+loco_bo_n_init: 8
+loco_bo_n_iter: 24

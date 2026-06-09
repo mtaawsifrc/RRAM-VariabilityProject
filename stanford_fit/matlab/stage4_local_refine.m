@@ -1,10 +1,18 @@
-function refined = stage4_local_refine(bo_result, fish, setB, resetB, cfg)
+function refined = stage4_local_refine(bo_result, fish, setB, resetB, cfg) %#ok<INUSL>
 %STAGE4_LOCAL_REFINE Nelder-Mead polish on the active subspace.
+%   FISH is unused (parameter names come from the priors); it is kept in the
+%   signature for backward compatibility. main_fit now passes [].
+    % Ablation hook: 'defaults_only' returns the (un-optimized) prior mean as-is.
+    if field_or(cfg, 'defaults_only', 0)
+        refined = struct('theta', bo_result.theta, 'fval', NaN, ...
+            'active_names', {bo_result.active_names}, 'priors', bo_result.priors);
+        return;
+    end
     active_names = bo_result.active_names;
     priors = bo_result.priors;
     j_active = zeros(1, numel(active_names));
     for k = 1:numel(active_names)
-        j_active(k) = find(strcmp(fish.names, active_names{k}), 1);
+        j_active(k) = find(strcmp(priors.names, active_names{k}), 1);
     end
 
     x0 = bo_result.theta(j_active);

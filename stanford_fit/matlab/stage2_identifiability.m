@@ -1,14 +1,20 @@
-function fish = stage2_identifiability(priors, setB, resetB, cfg)
-%STAGE2_IDENTIFIABILITY Optional finite-difference Fisher report.
-%   Informational only: it no longer gates the active set (Stage 3 is
-%   config-driven), and with polarity-split params each evaluation needs two
-%   sims, so it is skipped unless run_fisher=1 in the config.
+function fish = stage2_identifiability(priors, setB, resetB, cfg, theta0_in)
+%STAGE2_IDENTIFIABILITY Finite-difference Fisher report at a chosen point.
+%   THETA0_IN (optional): point at which to evaluate the Fisher information /
+%   Cramer-Rao bound. main_fit passes the fitted optimum (refined.theta) so the
+%   identifiability reflects the estimate, not the prior mean. Informational
+%   only (does not gate the active set); skipped unless run_fisher=1.
+    if nargin < 5; theta0_in = []; end
     if ~field_or(cfg, 'run_fisher', 0)
         fish = empty_fisher(priors);
         return;
     end
     sigma_logI = max(local_sigma_logI(setB, resetB), 0.05);
-    theta0 = priors.mu(:)';
+    if ~isempty(theta0_in)
+        theta0 = theta0_in(:)';
+    else
+        theta0 = priors.mu(:)';
+    end
     nP = numel(theta0);
     nV = height(setB) + height(resetB);
 

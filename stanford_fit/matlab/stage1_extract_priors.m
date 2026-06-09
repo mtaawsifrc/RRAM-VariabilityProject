@@ -77,6 +77,14 @@ function priors = stage1_extract_priors(setB, resetB, feats, cfg)
     priors.ub = ub;
     priors.mu = min(max(mu, lb), ub);
     priors.feats = feats;
+
+    % Ablation hook: 'plain' priors discard the physics guidance. Setting
+    % sigma = Inf removes the prior penalty in eval_loss AND widens the Stage 3
+    % search to the full physical bounds, so BO runs uninformed (same model,
+    % same data, same budget) -- isolating the value of the physics priors.
+    if strcmpi(field_or(cfg, 'prior_mode', 'physics'), 'plain')
+        priors.sigma = inf(size(priors.sigma));
+    end
 end
 
 function [names, mu, sigma, lb, ub] = push(names, mu, sigma, lb, ub, name, row)

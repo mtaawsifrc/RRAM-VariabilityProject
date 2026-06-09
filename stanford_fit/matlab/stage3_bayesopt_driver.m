@@ -6,6 +6,17 @@ function bo_result = stage3_bayesopt_driver(priors, fish, setB, resetB, cfg, out
 %   informational report only and no longer gates which params are fit.
     active_names = resolve_active_names(priors, cfg);
 
+    % Ablation hook: 'defaults_only' skips optimization and returns the physics
+    % prior mean (the un-tuned initial guess), so the ablation can quantify how
+    % much Bayesian optimization improves on the physics priors alone.
+    if field_or(cfg, 'defaults_only', 0)
+        bo_result = struct('theta', priors.mu, 'active_names', {active_names}, ...
+            'results', [], 'best', struct(), 'priors', priors);
+        results = []; %#ok<NASGU>
+        save(fullfile(outdir, 'bo_results.mat'), 'results');
+        return;
+    end
+
     % Scale/degenerate parameters search their full physical range (their
     % priors are weakly identifiable); structural priors stay near mu +/- 3 sigma.
     wide_set = {'I0', 'g0', 'Rs', 'Vel0_set', 'Vel0_res', 'F_min_set', 'F_min_res'};

@@ -1,5 +1,10 @@
-function out = main_fit_stanford(csv_path, config_path, outdir)
+function out = main_fit_stanford(csv_path, config_path, outdir, ensemble_path)
 %MAIN_FIT_STANFORD Entry point for the TaO-Fit pipeline.
+%   ENSEMBLE_PATH (optional): per-cycle ensemble CSV used ONLY by Stage 5 for
+%   LOCO / bootstrap cross-cycle uncertainty. Stages 1-4 always fit the
+%   representative curve in CSV_PATH, so the published point estimate is
+%   unchanged; the ensemble only supplies the cycle distribution for CIs.
+    if nargin < 4; ensemble_path = ''; end
     if ~isfolder(outdir); mkdir(outdir); end
     cfg = taofit_read_yaml(config_path);
 
@@ -8,25 +13,36 @@ function out = main_fit_stanford(csv_path, config_path, outdir)
     data = normalize_input_table(data);
     [setBranch, resetBranch, feats] = split_and_featurize(data);
 
+    if ~isempty(ensemble_path) && isfile(ensemble_path)
+        fprintf('[main] loading per-cycle ensemble from %s\n', ensemble_path);
+        ensemble = normalize_input_table(readtable(ensemble_path, 'TextType', 'string'));
+    else
+        ensemble = data;
+    end
+
     fprintf('[main] Stage 1: physics-informed priors\n');
     priors = stage1_extract_priors(setBranch, resetBranch, feats, cfg);
     save(fullfile(outdir, 'priors.mat'), 'priors');
 
-    fprintf('[main] Stage 2: Fisher identifiability\n');
-    fish = stage2_identifiability(priors, setBranch, resetBranch, cfg);
-    writematrix(fish.F, fullfile(outdir, 'fisher_matrix.csv'));
-    save(fullfile(outdir, 'fisher_report.mat'), 'fish');
-
     fprintf('[main] Stage 3: Bayesian optimization with HSPICE\n');
-    bo_result = stage3_bayesopt_driver(priors, fish, setBranch, resetBranch, cfg, outdir);
+    bo_result = stage3_bayesopt_driver(priors, [], setBranch, resetBranch, cfg, outdir);
     save(fullfile(outdir, 'bo_result.mat'), 'bo_result');
 
     fprintf('[main] Stage 4: local refinement\n');
-    refined = stage4_local_refine(bo_result, fish, setBranch, resetBranch, cfg);
+    refined = stage4_local_refine(bo_result, [], setBranch, resetBranch, cfg);
     save(fullfile(outdir, 'refined.mat'), 'refined');
 
+    % Stage 2 (Fisher) runs LAST, evaluated at the fitted optimum refined.theta.
+    % The Cramer-Rao bound / identifiability is defined at the estimate, not the
+    % prior mean; this is both statistically correct and far faster, since the
+    % model sims are well-conditioned at the fit (stiff/slow at the prior mean).
+    fprintf('[main] Stage 2: Fisher identifiability (at fitted optimum)\n');
+    fish = stage2_identifiability(priors, setBranch, resetBranch, cfg, refined.theta);
+    writematrix(fish.F, fullfile(outdir, 'fisher_matrix.csv'));
+    save(fullfile(outdir, 'fisher_report.mat'), 'fish');
+
     fprintf('[main] Stage 5: validation\n');
-    val = stage5_validate(refined, fish, setBranch, resetBranch, data, cfg, outdir);
+    val = stage5_validate(refined, fish, setBranch, resetBranch, ensemble, cfg, outdir);
     save(fullfile(outdir, 'validation.mat'), 'val');
 
     plot_fit_quality(refined, val, setBranch, resetBranch, fullfile(outdir, 'fit_quality.png'));
