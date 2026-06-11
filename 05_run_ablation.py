@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Ablation harness: quantify the value of physics-guided Bayesian optimization.
 
-For each condition it fits the representative curve three ways and tabulates the
-fit error, isolating the contribution of (i) the physics priors and (ii) the
-Bayesian optimization:
+For each condition it fits the representative curve four ways and tabulates the
+fit error, isolating the contribution of (i) the physics priors, (ii) the
+Bayesian optimization, and (iii) the conduction-regime guidance (02c):
 
-  physics_bo    physics priors + BO            (the full proposed method)
-  plain_bo      uninformative priors + BO      (same model/data/budget, no physics)
-  physics_nobo  physics priors, NO BO          (the un-tuned initial guess)
+  physics_regime_bo  regime-conditioned priors + mechanism weighting + BO
+                     (the full proposed method)
+  physics_bo         physics priors (legacy fixed windows) + BO
+  plain_bo           uninformative priors + BO  (same model/data/budget)
+  physics_nobo       regime-conditioned priors, NO BO (un-tuned initial guess)
 
 Outputs:
   results/ablation/<cond>/<variant>/...        per-run TaO-Fit outputs
@@ -27,13 +29,30 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parent
+# "_regime": sentinel resolved per condition to regime_map_csv: <path>.
 VARIANTS = {
-    "physics_bo":   {},                       # full method (defaults)
+    "physics_regime_bo": {"_regime": True},    # full proposed method
+    "physics_bo":   {"mechanism_weighting": 0},  # legacy physics priors
     "plain_bo":     {"prior_mode": "plain"},   # no physics priors
-    "physics_nobo": {"defaults_only": 1},      # physics priors, no optimization
+    "physics_nobo": {"defaults_only": 1, "_regime": True},  # no optimization
 }
 # Fisher not needed for the ablation comparison -> force it off for speed.
-COMMON = {"run_fisher": 0, "run_loco": 0, "run_bootstrap": 0}
+COMMON = {"run_fisher": 0, "run_loco": 0, "run_bootstrap": 0, "run_profile": 0}
+
+
+def ensure_regime_map(rep_csv: str) -> str:
+    """Build (if needed) and return the 02c regime map for a rep curve."""
+    rep = Path(rep_csv)
+    prefix = rep.stem.replace("_representative_curve_FIXED", "")
+    map_path = rep.parent / f"{prefix}_regime_map.csv"
+    if not map_path.is_file():
+        rc = subprocess.call([sys.executable,
+                              str(ROOT / "02c_classify_conduction_regimes.py"),
+                              "--rep-csv", str(rep),
+                              "--output-dir", str(rep.parent)])
+        if rc != 0 or not map_path.is_file():
+            raise RuntimeError(f"regime map build failed for {rep}")
+    return str(map_path)
 
 
 def write_cfg(base: Path, overrides: dict) -> str:
@@ -78,6 +97,9 @@ def main() -> int:
             print(f"[{c}] no representative curve, skipping"); continue
         for vname, ov in VARIANTS.items():
             outdir = outroot / c / vname
+            ov = dict(ov)
+            if ov.pop("_regime", False):
+                ov["regime_map_csv"] = ensure_regime_map(rep[0])
             cfg = write_cfg(base, ov)
             print(f"[{c}/{vname}] fitting ...")
             rc = subprocess.call([
@@ -97,11 +119,12 @@ def main() -> int:
     for c, v, rs, rr, _ in rows[1:]:
         vals = [float(rs), float(rr)]
         data[v][c] = np.nanmean(vals)
-    plotted = [c for c in conds if c in data["physics_bo"]]
-    x = np.arange(len(plotted)); w = 0.26
+    plotted = [c for c in conds if c in data["physics_regime_bo"]]
+    x = np.arange(len(plotted)); w = 0.8 / len(VARIANTS)
     fig, ax = plt.subplots(figsize=(max(8, len(plotted)), 4.5))
     for i, v in enumerate(VARIANTS):
-        ax.bar(x + (i - 1) * w, [data[v].get(c, np.nan) for c in plotted], w, label=v)
+        ax.bar(x + (i - (len(VARIANTS) - 1) / 2) * w,
+               [data[v].get(c, np.nan) for c in plotted], w, label=v)
     ax.set_xticks(x); ax.set_xticklabels(plotted, rotation=45, ha="right")
     ax.set_ylabel("mean RMSE (decades)"); ax.legend(); ax.grid(axis="y", alpha=.3)
     ax.set_title("Ablation: fit error by method")

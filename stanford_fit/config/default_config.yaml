@@ -41,6 +41,28 @@ rng_seed: 0
 hspice_bin: hspice
 va_path: ../templates/rram_v_1_0_0_hspice.va
 
+# --- Conduction-regime physics (02c_classify_conduction_regimes.py) ---
+# Path to the <prefix>_regime_map.csv for this device. Empty -> legacy
+# hardcoded prior-fit windows and no mechanism-aware loss weighting.
+regime_map_csv: ''
+# Down-weight residuals in windows whose dominant mechanism the Stanford bulk
+# current law cannot represent (Schottky / Fowler-Nordheim).
+mechanism_weighting: 1
+nonbulk_weight: 0.3
+
+# --- Operational identifiability ---
+# Stage 4b profile likelihood: 1-D loss scans around the optimum; the direct
+# evidence of practical (non-)identifiability. ~2*n_profile HSPICE sims per
+# active parameter -> enable for final/publication runs.
+run_profile: 0
+n_profile: 7
+# Two-pass refit: auto_active=1 + identifiability_csv=<previous run's
+# identifiability_report.csv> drops non-identifiable params from the active set.
+auto_active: 0
+# identifiability_csv: results/S1_taofit/identifiability_report.csv
+# freeze_params: comma list of parameters to exclude from optimization
+# freeze_params: tox,beta
+
 # --- Ablation hooks (driven by 05_run_ablation.py; leave at defaults here) ---
 # prior_mode: physics  -> physics-informed priors (default)
 #             plain     -> uninformative priors (sigma=Inf): same model/data/

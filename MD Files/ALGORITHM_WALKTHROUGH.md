@@ -1,5 +1,15 @@
 # Core Algorithm Walkthrough
 
+> **2026-06 update:** the pipeline now includes `02c_classify_conduction_regimes.py`
+> (automatic ohmic/PF/Schottky/FN regime classification per state segment),
+> regime-conditioned Stage-1 priors (`regime_map_csv`), mechanism-aware loss
+> weighting in `eval_loss.m`, a Stage-4b profile-likelihood identifiability check
+> (`stage4b_profile_likelihood.m`, `run_profile`), a per-run
+> `identifiability_report.csv`, and runners `07_run_final.py` /
+> `run_full_pipeline.sh`. Also: `run_fisher` now defaults to 1 (evaluated at the
+> fitted optimum), and scripts 02b/04/05/06 exist beyond what is described below.
+> See `MD Files/SUGGESTED_ALGORITHMIC_CHANGES.md` and `RUN_INSTRUCTIONS.md`.
+
 This document explains the core logic of the repository for a new PhD student
 or new developer joining the project. It focuses on the modern fitting pipeline:
 

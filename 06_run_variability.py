@@ -25,12 +25,28 @@ condition -- this is the slow stage. Start with one condition / bootstrap_n~100.
 import argparse, subprocess, sys, tempfile, os, glob
 from pathlib import Path
 import numpy as np
+import pandas as pd
 import scipy.io as sio
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parent
+MECH_ORDER = ["ohmic", "poole_frenkel", "schottky", "fowler_nordheim",
+              "unclassified"]
+
+
+def build_regime_map(rep_csv: str, ensemble_csv: str) -> str:
+    """Run 02c (regime map + per-cycle mechanism stability); return map path."""
+    rep = Path(rep_csv)
+    prefix = rep.stem.replace("_representative_curve_FIXED", "")
+    cmd = [sys.executable, str(ROOT / "02c_classify_conduction_regimes.py"),
+           "--rep-csv", str(rep), "--output-dir", str(rep.parent)]
+    if Path(ensemble_csv).is_file():
+        cmd += ["--ensemble-csv", str(ensemble_csv)]
+    if subprocess.call(cmd) != 0:
+        raise RuntimeError(f"regime classification failed for {rep}")
+    return str(rep.parent / f"{prefix}_regime_map.csv")
 
 
 def write_cfg(base: Path, overrides: dict) -> str:
@@ -57,6 +73,7 @@ def main() -> int:
 
     overrides = {
         "run_fisher": 0,
+        "run_profile": 0,
         "run_bootstrap": 1,
         "run_loco": 1 if args.with_loco else 0,
         "bootstrap_n": args.bootstrap_n,
@@ -77,8 +94,17 @@ def main() -> int:
                             "--step01-dir", str(st1), "--rep-csv", rep[0],
                             "--output", str(ens)]) != 0:
             print(f"[{c}] ensemble build failed, skipping"); continue
+        print(f"[{c}] classifying conduction regimes ...")
+        try:
+            regime_map = build_regime_map(rep[0], str(ens))
+        except RuntimeError as e:
+            print(f"[{c}] {e}; fitting without regime map")
+            regime_map = ""
         outdir = outroot / c
-        cfg = write_cfg(base, overrides)
+        cond_overrides = dict(overrides)
+        if regime_map:
+            cond_overrides["regime_map_csv"] = regime_map
+        cfg = write_cfg(base, cond_overrides)
         print(f"[{c}] bootstrap fit (n={args.bootstrap_n}) ...")
         subprocess.call([
             sys.executable, str(ROOT / "stanford_fit/python/03_run_stanford_fit.py"),
@@ -131,7 +157,66 @@ def main() -> int:
     for ext in ("png", "pdf"):
         fig.savefig(outroot / f"parameter_cv.{ext}", dpi=300)
     print("Wrote", outroot / "parameter_cis.csv")
+
+    summarize_regimes(cl, outroot)
     return 0
+
+
+def summarize_regimes(conds, outroot: Path):
+    """Aggregate per-condition regime maps + cycle stability; plot the
+    dominant-mechanism map (state x condition) -- the stoichiometry/variability
+    link to the conduction-mechanism analysis (MWSCAS 2025)."""
+    maps, stabs = [], []
+    for c in conds:
+        for p in glob.glob(str(ROOT / f"step02_{c}/*_regime_map.csv")):
+            maps.append(pd.read_csv(p).assign(condition=c))
+        for p in glob.glob(str(ROOT / f"step02_{c}/*_regime_stability.csv")):
+            stabs.append(pd.read_csv(p).assign(condition=c))
+    if not maps:
+        return
+    all_maps = pd.concat(maps, ignore_index=True)
+    all_maps.to_csv(outroot / "regime_maps_all.csv", index=False)
+    states = ["SET_HRS_PRE", "SET_LRS_POST", "RESET_LRS_PRE", "RESET_HRS_POST"]
+    if stabs:
+        all_stab = pd.concat(stabs, ignore_index=True)
+        all_stab.to_csv(outroot / "mechanism_stability_all.csv", index=False)
+        dom = (all_stab.sort_values("fraction", ascending=False)
+               .groupby(["condition", "state"]).first().reset_index())
+        src = {(r.condition, r.state): (r.mechanism, r.fraction)
+               for r in dom.itertuples()}
+    else:
+        big = (all_maps.sort_values("n_points", ascending=False)
+               .groupby(["condition", "state"]).first().reset_index())
+        src = {(r.condition, r.state): (r.mechanism, np.nan)
+               for r in big.itertuples()}
+
+    grid = np.full((len(states), len(conds)), np.nan)
+    for j, c in enumerate(conds):
+        for i, s in enumerate(states):
+            mech = src.get((c, s), ("unclassified", np.nan))[0]
+            grid[i, j] = MECH_ORDER.index(mech) if mech in MECH_ORDER else 4
+    fig, ax = plt.subplots(figsize=(max(7, len(conds)), 4))
+    im = ax.imshow(grid, aspect="auto", cmap=plt.get_cmap("viridis", 5),
+                   vmin=-0.5, vmax=4.5)
+    ax.set_xticks(range(len(conds))); ax.set_xticklabels(conds, rotation=45,
+                                                         ha="right")
+    ax.set_yticks(range(len(states))); ax.set_yticklabels(states)
+    for j, c in enumerate(conds):
+        for i, s in enumerate(states):
+            mech, frac = src.get((c, s), ("", np.nan))
+            txt = mech.replace("_", "\n")
+            if np.isfinite(frac):
+                txt += f"\n{100 * frac:.0f}%"
+            ax.text(j, i, txt, ha="center", va="center", fontsize=6,
+                    color="w")
+    cb = fig.colorbar(im, ax=ax, ticks=range(5))
+    cb.ax.set_yticklabels(MECH_ORDER)
+    ax.set_title("Dominant conduction mechanism per state "
+                 "(% = cycle-to-cycle stability)")
+    fig.tight_layout()
+    for ext in ("png", "pdf"):
+        fig.savefig(outroot / f"mechanism_map.{ext}", dpi=300)
+    print("Wrote", outroot / "regime_maps_all.csv")
 
 
 if __name__ == "__main__":

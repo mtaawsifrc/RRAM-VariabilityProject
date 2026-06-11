@@ -41,6 +41,12 @@ function out = main_fit_stanford(csv_path, config_path, outdir, ensemble_path)
     writematrix(fish.F, fullfile(outdir, 'fisher_matrix.csv'));
     save(fullfile(outdir, 'fisher_report.mat'), 'fish');
 
+    fprintf('[main] Stage 4b: profile likelihood (practical identifiability)\n');
+    prof = stage4b_profile_likelihood(refined, setBranch, resetBranch, cfg, outdir);
+    save(fullfile(outdir, 'profile_likelihood.mat'), 'prof');
+
+    write_identifiability_report(outdir, priors, refined, fish, prof);
+
     fprintf('[main] Stage 5: validation\n');
     val = stage5_validate(refined, fish, setBranch, resetBranch, ensemble, cfg, outdir);
     save(fullfile(outdir, 'validation.mat'), 'val');
@@ -48,9 +54,39 @@ function out = main_fit_stanford(csv_path, config_path, outdir, ensemble_path)
     plot_fit_quality(refined, val, setBranch, resetBranch, fullfile(outdir, 'fit_quality.png'));
 
     out = struct('theta_best', refined.theta, 'ci95', val.ci95, ...
-        'fisher', fish, 'loco_rmse', val.loco_rmse, 'cfg', cfg);
+        'fisher', fish, 'profile', prof, 'loco_rmse', val.loco_rmse, 'cfg', cfg);
     save(fullfile(outdir, 'main_out.mat'), 'out');
     fprintf('[main] done. results in %s\n', outdir);
+end
+
+function write_identifiability_report(outdir, priors, refined, fish, prof)
+%WRITE_IDENTIFIABILITY_REPORT Merge Fisher CRLB and profile-likelihood verdicts.
+%   One row per model parameter; this is the headline "which parameters are
+%   actually extractable" table, also consumed by stage3 auto_active refits.
+    lines = {'parameter,theta,active,fisher_rel_sigma,class,profile_verdict,pf_prior_available'};
+    pfa = '';
+    if isfield(priors, 'pf_available')
+        pfa = sprintf('%d/%d', priors.pf_available(1), priors.pf_available(2));
+    end
+    for j = 1:numel(priors.names)
+        nm = priors.names{j};
+        isActive = ismember(nm, refined.active_names);
+        verdict = '';
+        if isfield(prof, 'names') && ~isempty(prof.names)
+            pk = find(strcmp(prof.names, nm), 1);
+            if ~isempty(pk)
+                verdict = prof.verdict{pk};
+            end
+        end
+        lines{end + 1} = sprintf('%s,%.8g,%d,%.6g,%s,%s,%s', nm, ...
+            refined.theta(j), isActive, fish.rel_sigma(j), fish.class{j}, ...
+            verdict, pfa); %#ok<AGROW>
+    end
+    fid = fopen(fullfile(outdir, 'identifiability_report.csv'), 'w');
+    if fid ~= -1
+        fprintf(fid, '%s\n', lines{:});
+        fclose(fid);
+    end
 end
 
 function cfg = taofit_read_yaml(path)

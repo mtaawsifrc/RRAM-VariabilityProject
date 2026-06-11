@@ -59,7 +59,15 @@ function fish = stage2_identifiability(priors, setB, resetB, cfg, theta0_in)
 
     fish = struct('F', F, 'eigvals', lam, 'eigvecs', U, 'ratio', ratio, ...
         'well_idx', well_idx, 'nonid_idx', nonid_idx, 'eff_sigma', eff_sigma, ...
-        'rel_sigma', rel_sigma, 'names', {priors.names}, 'theta0', theta0);
+        'rel_sigma', rel_sigma, 'names', {priors.names}, 'theta0', theta0, ...
+        'class', {classify_rel_sigma(rel_sigma)});
+end
+
+function cls = classify_rel_sigma(rel_sigma)
+%CLASSIFY_REL_SIGMA Three-level identifiability verdict from the CRLB.
+    cls = repmat({'non_identifiable'}, 1, numel(rel_sigma));
+    cls(rel_sigma < 2.0) = {'weakly_identifiable'};
+    cls(rel_sigma < 0.5) = {'identifiable'};
 end
 
 function v = field_or(s, fn, default)
@@ -85,6 +93,7 @@ function fish = empty_fisher(priors)
     fish = struct('F', zeros(n), 'eigvals', zeros(n, 1), 'eigvecs', eye(n), ...
         'ratio', zeros(n, 1), 'well_idx', active, 'nonid_idx', setdiff(1:n, active), ...
         'eff_sigma', priors.sigma(:)', 'rel_sigma', priors.sigma(:)' ./ max(abs(priors.mu(:)'), realmin), ...
-        'names', {priors.names}, 'theta0', priors.mu);
+        'names', {priors.names}, 'theta0', priors.mu, ...
+        'class', {repmat({'not_evaluated'}, 1, n)});
 end
 

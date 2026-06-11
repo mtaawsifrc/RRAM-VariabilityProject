@@ -88,6 +88,23 @@ function names = resolve_active_names(priors, cfg)
     if isempty(names)
         names = default_set(ismember(default_set, priors.names));
     end
+    % freeze_params: explicit comma list of parameters to hold at the prior mean.
+    if isfield(cfg, 'freeze_params') && (ischar(cfg.freeze_params) || isstring(cfg.freeze_params))
+        frozen = strtrim(split(string(cfg.freeze_params), ','));
+        frozen = cellstr(frozen(strlength(frozen) > 0));
+        names = setdiff(names, frozen, 'stable');
+    end
+    % auto_active: drop parameters classified non-identifiable in a previous
+    % run's identifiability_report.csv (two-pass refit workflow).
+    if field_or(cfg, 'auto_active', 0) && isfield(cfg, 'identifiability_csv') ...
+            && isfile(cfg.identifiability_csv)
+        T = readtable(cfg.identifiability_csv, 'TextType', 'string');
+        bad = cellstr(T.parameter(contains(string(T.class), "non_identifiable")));
+        if ~isempty(bad)
+            fprintf('[stage3] auto_active: freezing %s\n', strjoin(bad, ', '));
+            names = setdiff(names, bad, 'stable');
+        end
+    end
 end
 
 function v = field_or(s, fn, default)

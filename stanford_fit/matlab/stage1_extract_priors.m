@@ -1,5 +1,12 @@
 function priors = stage1_extract_priors(setB, resetB, feats, cfg)
 %STAGE1_EXTRACT_PRIORS Derive soft physics priors from the representative I-V curve.
+%   If cfg.regime_map_csv points to a regime map (02c_classify_conduction_
+%   regimes.py), the prior-fit voltage windows come from the classified
+%   conduction regimes instead of hardcoded ranges: the LRS sinh fit uses the
+%   ohmic window of SET_LRS_POST, and gamma0/Ea come from per-branch
+%   Poole-Frenkel windows (SET_HRS_PRE / RESET_HRS_POST). If the map shows no
+%   PF window for a branch (e.g. ohmic->FN HRS), PF defaults are kept with
+%   inflated sigma rather than forcing a PF regression onto non-PF data.
     kB = 1.380649e-23;
     q = 1.602176634e-19;
     eps0 = 8.8541878128e-12;
@@ -10,7 +17,11 @@ function priors = stage1_extract_priors(setB, resetB, feats, cfg)
     a0 = field_or(cfg, 'a0', 2.5e-10);
     gap_min = field_or(cfg, 'gap_min', 1e-10);
 
-    [A_est, V0_est, sig_A, sig_V0] = fit_lrs_sinh(setB, feats);
+    regimes = load_regime_map(cfg);
+    has_regimes = ~isempty(regimes);
+
+    win_ohmic = regime_window(regimes, 'SET', 'SET_LRS_POST', 'ohmic');
+    [A_est, V0_est, sig_A, sig_V0] = fit_lrs_sinh(setB, feats, win_ohmic);
 
     g0_prior = field_or(cfg, 'g0_prior_m', 2.75e-10);
     sig_g0 = field_or(cfg, 'g0_prior_sigma_m', 0.5e-10);
@@ -19,7 +30,14 @@ function priors = stage1_extract_priors(setB, resetB, feats, cfg)
     sig_I0 = abs(I0_prior) * sqrt((sig_A / max(abs(A_est), realmin))^2 + ...
         (gap_min * sig_g0 / g0_prior^2)^2);
 
-    [gamma0_prior, sig_gamma0, Ea_prior, sig_Ea] = fit_pf_priors(setB, feats, eps_taox, tox, T, a0, kB, q);
+    win_pf_set = regime_window(regimes, 'SET', 'SET_HRS_PRE', 'poole_frenkel');
+    win_pf_res = regime_window(regimes, 'RESET', 'RESET_HRS_POST', 'poole_frenkel');
+    [g_set, sg_set, ea_set, sea_set, pf_ok_set] = fit_pf_priors( ...
+        setB, field_or(feats, 'Vset', NaN), eps_taox, tox, T, a0, kB, q, ...
+        win_pf_set, has_regimes, 'fwd');
+    [g_res, sg_res, ea_res, sea_res, pf_ok_res] = fit_pf_priors( ...
+        resetB, field_or(feats, 'Vreset', NaN), eps_taox, tox, T, a0, kB, q, ...
+        win_pf_res, has_regimes, 'ret');
 
     F_min_prior = field_or(cfg, 'F_min_prior', 1.4e9);
     sig_Fmin = 0.3 * F_min_prior;
@@ -37,7 +55,8 @@ function priors = stage1_extract_priors(setB, resetB, feats, cfg)
     % Per-parameter prior as [mu, sigma, lb, ub]. Shared (polarity-independent)
     % parameters keep a plain name; polarity-split parameters are emitted twice
     % as <name>_set and <name>_res so the single-polarity Stanford model can fit
-    % |Vset| != |Vreset| (see simulate_branches.m).
+    % |Vset| != |Vreset| (see simulate_branches.m). gamma0/Ea may carry
+    % branch-specific priors when the regime map provides per-branch PF windows.
     P = struct();
     P.I0   = [I0_prior, max(sig_I0, 0.25 * abs(I0_prior)), 1e-8, 9.9e-3];
     P.g0   = [g0_prior, sig_g0, 1.5e-10, 5.0e-10];
@@ -47,8 +66,10 @@ function priors = stage1_extract_priors(setB, resetB, feats, cfg)
     P.tox  = [tox, 0.5e-9, 2e-9, 1e-8];
     P.Rs   = [Rs_prior, sig_Rs, 10, 1e6];
     P.V0     = [V0_est, sig_V0, 0.05, 2.0];
-    P.gamma0 = [gamma0_prior, sig_gamma0, 4, 24];
-    P.Ea     = [Ea_prior, sig_Ea, 0.1, 0.99];
+    P.gamma0_set = [g_set, sg_set, 4, 24];
+    P.gamma0_res = [g_res, sg_res, 4, 24];
+    P.Ea_set     = [ea_set, sea_set, 0.1, 0.99];
+    P.Ea_res     = [ea_res, sea_res, 0.1, 0.99];
     P.F_min  = [F_min_prior, sig_Fmin, 5e8, 2.99e9];
     P.Vel0   = [field_or(cfg, 'Vel0_prior', 10), field_or(cfg, 'Vel0_sigma', 5), 0.1, 19.9];
     P.gap_max = [field_or(cfg, 'gap_max', 1.7e-9), 0.3e-9, 1.0e-9, 1.0e-8];
@@ -61,8 +82,16 @@ function priors = stage1_extract_priors(setB, resetB, feats, cfg)
         [names, mu, sigma, lb, ub] = push(names, mu, sigma, lb, ub, shared{k}, P.(shared{k}));
     end
     for k = 1:numel(split)
-        [names, mu, sigma, lb, ub] = push(names, mu, sigma, lb, ub, [split{k} '_set'], P.(split{k}));
-        [names, mu, sigma, lb, ub] = push(names, mu, sigma, lb, ub, [split{k} '_res'], P.(split{k}));
+        % Branch-specific prior rows (e.g. gamma0_set) win over the shared row.
+        for suffix = {'_set', '_res'}
+            nm = [split{k} suffix{1}];
+            if isfield(P, nm)
+                row = P.(nm);
+            else
+                row = P.(split{k});
+            end
+            [names, mu, sigma, lb, ub] = push(names, mu, sigma, lb, ub, nm, row);
+        end
     end
     % Initial gap: SET starts in HRS (large gap), RESET starts in LRS (gap_min).
     [names, mu, sigma, lb, ub] = push(names, mu, sigma, lb, ub, 'gap_ini_set', ...
@@ -77,6 +106,11 @@ function priors = stage1_extract_priors(setB, resetB, feats, cfg)
     priors.ub = ub;
     priors.mu = min(max(mu, lb), ub);
     priors.feats = feats;
+    % Regime map travels with the priors: eval_loss uses it for mechanism-aware
+    % residual weighting, and pf_available flags which branches actually had a
+    % PF window (false -> gamma0/Ea priors are defaults, not data-derived).
+    priors.regimes = regimes;
+    priors.pf_available = [pf_ok_set, pf_ok_res];
 
     % Ablation hook: 'plain' priors discard the physics guidance. Setting
     % sigma = Inf removes the prior penalty in eval_loss AND widens the Stage 3
@@ -95,7 +129,40 @@ function [names, mu, sigma, lb, ub] = push(names, mu, sigma, lb, ub, name, row)
     ub(end + 1) = row(4); %#ok<AGROW>
 end
 
-function [A_est, V0_est, sig_A, sig_V0] = fit_lrs_sinh(setB, feats)
+function regimes = load_regime_map(cfg)
+%LOAD_REGIME_MAP Read the 02c regime map table, or return [] when not configured.
+    regimes = [];
+    path = field_or(cfg, 'regime_map_csv', '');
+    if isempty(path) || ~(ischar(path) || isstring(path)) || ~isfile(path)
+        return;
+    end
+    try
+        regimes = readtable(path, 'TextType', 'string');
+    catch err
+        warning('stage1:regimeMap', 'Failed to read regime map %s: %s', ...
+            char(path), err.message);
+        regimes = [];
+    end
+end
+
+function win = regime_window(regimes, branch, state, mech)
+%REGIME_WINDOW [v_lo v_hi] of the best (highest R^2) matching regime, else NaN.
+    win = [NaN, NaN];
+    if isempty(regimes)
+        return;
+    end
+    rows = strcmpi(string(regimes.branch), branch) & ...
+        strcmpi(string(regimes.state), state) & ...
+        strcmpi(string(regimes.mechanism), mech);
+    if ~any(rows)
+        return;
+    end
+    sub = regimes(rows, :);
+    [~, ix] = max(sub.r2);
+    win = [sub.v_lo(ix), sub.v_hi(ix)];
+end
+
+function [A_est, V0_est, sig_A, sig_V0] = fit_lrs_sinh(setB, feats, win)
     A_default = max(abs(field_or(feats, 'G_LRS', NaN)), 1e-7);
     if ~isfinite(A_default)
         A_default = 1e-7;
@@ -112,13 +179,21 @@ function [A_est, V0_est, sig_A, sig_V0] = fit_lrs_sinh(setB, feats)
     % Fit the LRS sinh on the genuine low-voltage ohmic region of the SET
     % return sweep (below compliance), NOT the high-V plateau where current
     % is pinned at the SMU limit (which is ill-posed for sinh and inflates A).
+    % The window comes from the classified ohmic regime when available.
+    if all(isfinite(win))
+        v_lo = win(1);
+        v_hi = win(2);
+    else
+        v_lo = 0.02;
+        v_hi = 0.6;
+    end
     Imax = max(setB.median_abs_current_A, [], 'omitnan');
     bsi = setB.butterfly_sequence_index;
     isReturn = bsi > median(bsi, 'omitnan');
-    mask = isReturn & setB.voltage_V > 0.02 & setB.voltage_V < 0.6 & ...
+    mask = isReturn & setB.voltage_V >= v_lo & setB.voltage_V <= v_hi & ...
         setB.median_abs_current_A > 0 & setB.median_abs_current_A < 0.95 * Imax;
     if nnz(mask) < 6
-        mask = setB.voltage_V > 0.02 & setB.voltage_V < 0.6 & ...
+        mask = setB.voltage_V >= v_lo & setB.voltage_V <= v_hi & ...
             setB.median_abs_current_A > 0 & setB.median_abs_current_A < 0.95 * Imax;
     end
     if nnz(mask) < 6
@@ -142,21 +217,53 @@ function [A_est, V0_est, sig_A, sig_V0] = fit_lrs_sinh(setB, feats)
     sig_V0 = max(0.05, rel * V0_est);
 end
 
-function [gamma0_prior, sig_gamma0, Ea_prior, sig_Ea] = fit_pf_priors(setB, feats, eps, tox, T, a0, kB, q)
+function [gamma0_prior, sig_gamma0, Ea_prior, sig_Ea, pf_ok] = fit_pf_priors( ...
+        B, Vth, eps, tox, T, a0, kB, q, win, has_regimes, half)
+%FIT_PF_PRIORS gamma0/Ea priors from a Poole-Frenkel regression on one branch.
+%   WIN: PF voltage window from the regime map ([NaN NaN] if none).
+%   HAS_REGIMES: a regime map was provided. If it shows no PF window for this
+%   branch, do NOT force a PF fit onto non-PF (ohmic/Schottky/FN) data --
+%   return the defaults with inflated sigma and pf_ok = false.
+%   HALF: 'fwd' fits the pre-switching half (SET HRS), 'ret' the post-switching
+%   half (RESET HRS); only enforced when a regime window is used.
     gamma0_prior = 16.5;
     sig_gamma0 = 6;
     Ea_prior = 0.6;
     sig_Ea = 0.25;
+    pf_ok = false;
 
-    Vset = field_or(feats, 'Vset', NaN);
-    if height(setB) < 6 || ~isfinite(Vset)
+    if has_regimes && ~all(isfinite(win))
+        sig_gamma0 = 12;
+        sig_Ea = 0.4;
         return;
     end
-    mask = abs(setB.voltage_V) > 0.3 & abs(setB.voltage_V) < 0.9 * max(abs(Vset), 0.5);
-    V = abs(setB.voltage_V(mask));
-    I = setB.median_abs_current_A(mask);
+    if height(B) < 6
+        return;
+    end
+
+    Vabs = abs(B.voltage_V);
+    if all(isfinite(win))
+        mask = Vabs >= win(1) & Vabs <= win(2);
+        bsi = B.butterfly_sequence_index;
+        if strcmpi(half, 'fwd')
+            mask = mask & bsi <= median(bsi, 'omitnan');
+        else
+            mask = mask & bsi > median(bsi, 'omitnan');
+        end
+    else
+        if ~isfinite(Vth)
+            return;
+        end
+        mask = Vabs > 0.3 & Vabs < 0.9 * max(abs(Vth), 0.5);
+    end
+    V = Vabs(mask);
+    I = B.median_abs_current_A(mask);
     keep = isfinite(V) & isfinite(I) & V > 0 & I > 0;
     if nnz(keep) < 5
+        if has_regimes
+            sig_gamma0 = 12;
+            sig_Ea = 0.4;
+        end
         return;
     end
 
@@ -168,6 +275,7 @@ function [gamma0_prior, sig_gamma0, Ea_prior, sig_Ea] = fit_pf_priors(setB, feat
     gamma0_prior = max(min(gamma0_prior, 24), 4);
     sig_gamma0 = 0.4 * gamma0_prior;
     Ea_prior = max(0.1, min(1.0, -p_pf(2) * kB * T / q));
+    pf_ok = true;
 end
 
 function v = field_or(s, fn, default)

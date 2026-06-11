@@ -1,0 +1,819 @@
+% =========================================================================
+% METHODOLOGY SECTION (IEEE journal, detailed version)
+% Physics-Guided, Identifiability-Aware Extraction of Stanford RRAM Compact-
+% Model Parameters from Experimental TaOx I-V Characteristics
+%
+% Self-contained compilable document. To merge into a full paper, copy the
+% preamble packages and everything between \section{Methodology} and the
+% final \end{document} into your IEEEtran main file.
+%
+% All numerical constants below mirror the released implementation
+% (02c_classify_conduction_regimes.py, stanford_fit/matlab/*) so the text,
+% code, and reported results stay mutually consistent.
+% =========================================================================
+\documentclass[journal]{IEEEtran}
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{siunitx}
+\usepackage[ruled,linesnumbered]{algorithm2e}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning,fit,calc}
+
+% ---- TikZ styles for the pipeline flowchart -----------------------------
+\tikzset{
+  stage/.style={rectangle, rounded corners=2pt, draw=black, thick,
+    minimum width=5.6cm, minimum height=0.86cm, align=center,
+    font=\footnotesize, fill=gray!8},
+  datafile/.style={trapezium, trapezium left angle=70, trapezium right angle=110,
+    draw=black, minimum height=0.6cm, align=center, font=\scriptsize,
+    fill=blue!6, inner xsep=2pt},
+  decision/.style={diamond, aspect=2.4, draw=black, thick, align=center,
+    font=\scriptsize, fill=orange!10, inner sep=1pt},
+  sideout/.style={rectangle, draw=black, dashed, align=center,
+    font=\scriptsize, fill=green!6, minimum height=0.6cm},
+  arrow/.style={-{Stealth[length=2.4mm]}, thick},
+  dasharrow/.style={-{Stealth[length=2.4mm]}, thick, dashed},
+}
+
+\begin{document}
+
+\title{Physics-Guided, Identifiability-Aware Extraction of Stanford RRAM
+Compact-Model Parameters from Experimental TaO$_x$ Devices: Methodology}
+
+\author{...}% authors omitted in this methodology draft
+\maketitle
+
+\begin{abstract}
+This document specifies, at implementation level, the proposed methodology for
+extracting Stanford--PKU RRAM compact-model parameters from measured DC
+$I$--$V$ characteristics of TaO$_x$ devices. The method (i) automatically
+classifies the dominant conduction mechanism (ohmic, Poole--Frenkel, Schottky,
+Fowler--Nordheim) per voltage window and resistance state, (ii) converts the
+classified regimes into physics-informed priors and a mechanism-aware fitting
+domain, (iii) fits the compact model by Bayesian optimization of full HSPICE
+transient simulations followed by local refinement, and (iv) reports which
+parameters are actually identifiable from DC data using a Fisher-information
+analysis at the optimum, one-dimensional profile likelihoods, and cluster
+bootstrap confidence intervals across measurement cycles.
+\end{abstract}
+
+% =========================================================================
+\section{Methodology}
+% =========================================================================
+
+\subsection{Overview and Rationale}
+\label{sec:overview}
+
+The goal of the proposed framework is \emph{not} merely to reproduce a
+measured $I$--$V$ curve with the Stanford--PKU compact model
+\cite{guan2012spice,jiang2014stanford}, but to answer a stricter question:
+\emph{which compact-model parameters can be defensibly extracted from DC
+$I$--$V$ data of a given device, and with what uncertainty?} Three
+observations motivate the design.
+
+First, the dominant conduction mechanism in TaO$_x$ RRAM is not unique: our
+previous atomic-scale characterization \cite{chowdhury2025mwscas} showed that,
+depending on oxygen stoichiometry, resistance state, and voltage window, the
+high-resistance state (HRS) and low-resistance state (LRS) may be governed by
+ohmic, Poole--Frenkel (PF), Schottky, or Fowler--Nordheim (FN) transport.
+The Stanford model, however, expresses conduction through a single
+bulk hopping/tunneling law (Sec.~\ref{sec:model}). Fitting that law to voltage
+windows dominated by interface-limited (Schottky) or tunneling (FN) transport
+silently corrupts the extracted parameters. We therefore classify the
+conduction regimes \emph{first} and use them to (a) place the prior-extraction
+windows, (b) weight the fitting loss toward the model's physical domain of
+validity, and (c) interpret identifiability per mechanism.
+
+Second, the Stanford model is over-parameterized with respect to a single DC
+butterfly curve: several parameters (e.g., thermal resistance, characteristic
+field) influence the simulated current only weakly or in compensating
+combinations. Reporting a single best-fit vector without an identifiability
+analysis invites over-interpretation. We therefore make identifiability an
+\emph{operational} output: a Cram\'er--Rao analysis at the fitted optimum,
+confirmed by profile likelihoods, classifies each parameter as identifiable,
+weakly identifiable, or non-identifiable, and non-identifiable parameters are
+reported at their prior values rather than claimed as extracted.
+
+Third, RRAM exhibits strong cycle-to-cycle (C2C) variability; a fit to one
+cycle is not a device characterization. We fit a measured \emph{medoid} cycle
+(not a synthetic average) for the point estimate, and quantify how C2C
+variability propagates into the parameters with a cluster bootstrap over whole
+cycles and leave-one-cycle-out (LOCO) cross-validation.
+
+Fig.~\ref{fig:flowchart} shows the complete pipeline;
+Algorithms~\ref{alg:regimes} and \ref{alg:fit} give the two core procedures.
+
+% -------------------------------------------------------------------------
+\subsection{Device Fabrication and Electrical Measurement}
+\label{sec:devices}
+
+Ti/Pt/TaO$_x$/Ta/Pt cross-point devices ($1<x<2.5$) were fabricated as
+reported in \cite{chowdhury2025mwscas,moazzeni2023}; the TaO$_x$ switching
+layer was deposited by reactive DC sputtering, with oxygen stoichiometry
+controlled through the O$_2$ partial pressure during deposition.
+Twelve deposition/measurement conditions (S1--S12) are analyzed.
+
+DC resistive-switching characteristics were measured with a Keysight B1500A
+semiconductor parameter analyzer. Each measurement record contains bipolar
+sweeps (SET: $0\!\to\!V_{\max}\!\to\!0$; RESET: $0\!\to\!V_{\min}\!\to\!0$)
+with SMU current compliance ($I_{\mathrm{cc}}\approx\SI{0.5}{\milli\ampere}$
+for the devices reported here) applied during electroforming and SET to
+prevent hard breakdown. Per condition, tens of consecutive cycles were
+recorded to expose C2C variability.
+
+% -------------------------------------------------------------------------
+\subsection{Stage 0: Raw-Data Extraction and Cycle Quality Screening}
+\label{sec:extraction}
+
+Raw B1500 CSV exports are parsed into per-cycle voltage--current point sets,
+preserving the instrument's block structure (SET/RESET labels). Branch
+polarity is taken from the block label when present and inferred from voltage
+polarity otherwise. A cycle is retained only if it passes all of the following
+screens, chosen to reject open/shorted devices, aborted sweeps, and noise-floor
+artifacts:
+
+\begin{itemize}
+  \item at least 40 measured points and voltage span $\ge\SI{1.0}{\volt}$;
+  \item peak current between \SI{1}{\nano\ampere} and \SI{1}{\ampere};
+        currents below \SI{0.1}{\pico\ampere} are treated as noise floor;
+  \item dynamic range of $|I|$ of at least 0.5 decades;
+  \item both SET and RESET content present.
+\end{itemize}
+
+Rejected cycles never contribute to any later stage. Each surviving point is
+tagged with condition, device, cycle index, branch, and sweep position
+(\texttt{point\_index}), which later preserves the hysteresis ordering.
+
+% -------------------------------------------------------------------------
+\subsection{Stage 1: Medoid Representative Cycle}
+\label{sec:medoid}
+
+For each condition, the device with the strongest usable-cycle statistics is
+selected, and a single measured cycle is chosen to represent it. All good
+cycles of the device are interpolated in $\log_{10}|I|$ onto a common
+branch-specific voltage grid; at each grid voltage the median log-current
+defines the \emph{typical} curve. Each cycle $c$ is scored by its median
+absolute deviation from the typical curve,
+\begin{equation}
+  s_c=\operatorname{median}_v\bigl|\log_{10}|I_c(v)|-
+  \operatorname{median}_{c'}\log_{10}|I_{c'}(v)|\bigr|,
+\end{equation}
+and the cycle minimizing the joint SET/RESET rank is selected (the
+\emph{medoid}). Unlike a pointwise median curve, the medoid is a real measured
+sweep: it preserves kink structure, compliance behavior, and the exact
+hysteresis sequence, and it gives later stages a defensible physical object to
+fit. The representative CSV carries, per point, the branch, voltage, current
+statistics across cycles (median and interquartile range, used later as noise
+weights), and a butterfly sequence index.
+
+In parallel, a \emph{per-cycle ensemble} file is built containing every good
+cycle of the same device in the identical schema; this drives the bootstrap
+and LOCO analyses of Sec.~\ref{sec:uncertainty}.
+
+% -------------------------------------------------------------------------
+\subsection{Stage 2: Automatic Conduction-Regime Classification}
+\label{sec:regimes}
+
+This stage automates the conduction-mechanism analysis of
+\cite{chowdhury2025mwscas} and produces the \emph{regime map} used throughout
+the rest of the pipeline.
+
+\subsubsection{State segmentation}
+The representative butterfly cycle is split into four state segments by the
+voltage extrema along the measured sequence: \textsc{set-hrs-pre} (forward SET
+sweep, device in HRS), \textsc{set-lrs-post} (SET return sweep, LRS),
+\textsc{reset-lrs-pre} (forward RESET sweep, LRS), and \textsc{reset-hrs-post}
+(RESET return sweep, HRS). Segmenting by sequence rather than by voltage is
+essential: forward and return half-sweeps overlap in voltage but correspond to
+different resistance states.
+
+\subsubsection{Candidate mechanisms}
+On each window $W$ of a segment (window construction below), the four standard
+transport linearizations \cite{chiu2014} are regressed:
+\begin{align}
+  \text{ohmic:}& & \ln I &= m\ln V + b, & m&\in[0.8,1.2],
+  \label{eq:ohmic}\\[2pt]
+  \text{PF:}& & \ln (I/V) &= s_{\mathrm{PF}}\sqrt{V} + b, & s_{\mathrm{PF}}&>0,
+  \label{eq:pf}\\[2pt]
+  \text{Schottky:}& & \ln I &= s_{\mathrm{S}}\sqrt{V} + b, & s_{\mathrm{S}}&>0,
+  \label{eq:schottky}\\[2pt]
+  \text{FN:}& & \ln (I/V^{2}) &= s_{\mathrm{FN}}/V + b, & s_{\mathrm{FN}}&<0.
+  \label{eq:fn}
+\end{align}
+Here $V$ denotes $|V|$ and $I$ denotes $|I|$ within the segment; the field is
+$E\simeq V/t_{\mathrm{ox}}$ with oxide thickness
+$t_{\mathrm{ox}}=\SI{5}{\nano\meter}$.
+
+\subsubsection{Physical admissibility: dynamic permittivity}
+The PF and Schottky linearizations, Eqs.~(\ref{eq:pf})--(\ref{eq:schottky}),
+are nearly collinear on narrow windows, so a fit-quality criterion alone
+cannot separate them. We therefore enforce the physical consistency check used
+in the dielectric-conduction literature \cite{chiu2014}: the theoretical
+slopes are
+\begin{align}
+  s_{\mathrm{PF}} &= \frac{q}{kT}\sqrt{\frac{q}{\pi\varepsilon_0
+      \varepsilon_r t_{\mathrm{ox}}}}, &
+  s_{\mathrm{S}} &= \frac{q}{kT}\sqrt{\frac{q}{4\pi\varepsilon_0
+      \varepsilon_r t_{\mathrm{ox}}}},
+\end{align}
+which we invert to obtain the dynamic relative permittivity implied by the
+fitted slope $s$:
+\begin{equation}
+  \varepsilon_r^{\mathrm{dyn}}
+  = \frac{q^{3}}{\pi\,\varepsilon_0\, t_{\mathrm{ox}}\,(s\,kT)^{2}}
+  \times
+  \begin{cases}
+    1, & \text{PF},\\[2pt]
+    \tfrac14, & \text{Schottky}.
+  \end{cases}
+  \label{eq:epsdyn}
+\end{equation}
+A PF or Schottky candidate is admitted only if
+$\varepsilon_r^{\mathrm{dyn}}\in[1,60]$, a deliberately generous bracket
+around the optical ($n^2\!\approx\!4.8$) and static
+($\varepsilon_r\!\approx\!25$) permittivities of TaO$_x$; the fitted
+$\varepsilon_r^{\mathrm{dyn}}$ is reported in the regime map so reviewers can
+audit each assignment. The ohmic candidate is admitted only if its log--log
+slope lies in $[0.8, 1.2]$, and FN only with negative slope. This is what
+makes the classification a \emph{physics} test rather than a curve-shape
+contest.
+
+\subsubsection{Window construction and model selection}
+Within each state segment, points are cleaned ($|V|\ge\SI{0.05}{\volt}$,
+$|I|\ge\SI{0.1}{\pico\ampere}$) and the SMU compliance plateau is excised by
+discarding points with $|I|\ge 0.95\,\max_W |I|$, since a current pinned at
+the compliance limit carries no transport information. Sliding windows of
+length $\max(8,\lceil N/3\rceil)$ points with stride one quarter window are
+classified independently; on each window the admissible mechanism with the
+lowest Bayesian information criterion,
+\begin{equation}
+  \mathrm{BIC} = n\ln(\mathrm{RSS}/n) + 2\ln n,
+  \label{eq:bic}
+\end{equation}
+wins ($n$: window size; RSS: regression residual sum of squares; two free
+parameters per candidate). Consecutive windows with the same winner are merged
+into a \emph{regime}, and the regression is refit over the merged span to
+produce the reported slope, intercept, $R^2$, BIC, and
+$\varepsilon_r^{\mathrm{dyn}}$. Windows where no candidate is admissible are
+labeled \emph{unclassified} (e.g., transition regions where trap-assisted
+mixtures dominate \cite{chowdhury2025mwscas}); they are retained in the map
+and treated conservatively downstream. The procedure is summarized in
+Algorithm~\ref{alg:regimes}.
+
+\subsubsection{Outputs}
+The regime map lists, per (branch, state, window): mechanism, $v_{\mathrm{lo}}$,
+$v_{\mathrm{hi}}$, slope, intercept, $R^2$, BIC, $\varepsilon_r^{\mathrm{dyn}}$,
+point count, and a \texttt{stanford\_valid} flag that is true for the bulk
+mechanisms (ohmic, PF) representable by the Stanford current law and false for
+the interface/tunneling mechanisms (Schottky, FN). When the per-cycle ensemble
+is supplied, every cycle is classified independently and the \emph{mechanism
+stability}---the fraction of cycles sharing the segment's dominant
+mechanism---is reported, providing a variability metric at the level of
+transport physics rather than current magnitude.
+
+% ---- Algorithm 1 ---------------------------------------------------------
+\begin{algorithm}[!t]
+\caption{Conduction-regime classification (Stage 2)}
+\label{alg:regimes}
+\footnotesize
+\KwIn{Representative butterfly cycle $\{(V_i, I_i)\}$ with sequence index;
+  $t_{\mathrm{ox}}$; $T$; admissibility bracket
+  $\varepsilon_r^{\mathrm{dyn}}\in[1,60]$}
+\KwOut{Regime map $\mathcal{R}$: \{branch, state, $[v_{\mathrm{lo}},
+  v_{\mathrm{hi}}]$, mechanism, slope, $R^2$, BIC, $\varepsilon_r^{\mathrm{dyn}}$,
+  \texttt{stanford\_valid}\}}
+split cycle into segments $\{$\textsc{set-hrs-pre}, \textsc{set-lrs-post},
+  \textsc{reset-lrs-pre}, \textsc{reset-hrs-post}$\}$ at the sequence-ordered
+  voltage extrema\;
+\ForEach{segment $S$}{
+  drop points with $|V|<\SI{0.05}{\V}$ or $|I|<\SI{e-13}{\A}$ or
+    $|I|\ge 0.95\max_S|I|$ (compliance plateau)\;
+  $w\leftarrow\max(8,\lceil |S|/3\rceil)$;\quad slide windows with stride
+    $\lfloor w/4\rfloor$\;
+  \ForEach{window $W$}{
+    \ForEach{mechanism $M\in\{$ohmic, PF, Schottky, FN$\}$}{
+      regress the linearization of $M$, Eqs.~(\ref{eq:ohmic})--(\ref{eq:fn}), on $W$\;
+      reject $M$ if its slope-sign/range constraint fails\;
+      \If{$M\in\{$PF, Schottky$\}$}{
+        compute $\varepsilon_r^{\mathrm{dyn}}$ by Eq.~(\ref{eq:epsdyn}); reject $M$ if
+        outside $[1,60]$\;}
+    }
+    label $W$ with the admissible $M$ of minimum BIC, Eq.~(\ref{eq:bic}), else
+      \emph{unclassified}\;
+  }
+  merge consecutive same-label windows; refit each merged span; append to
+    $\mathcal{R}$ with \texttt{stanford\_valid} $\leftarrow$
+    $[M\in\{$ohmic, PF$\}]$\;
+}
+\If{per-cycle ensemble provided}{
+  classify each cycle's segments as above (single window per segment); report
+  per-state mechanism stability fractions\;}
+\end{algorithm}
+
+% -------------------------------------------------------------------------
+\subsection{Compact Model and Forward Simulation}
+\label{sec:model}
+
+We fit the Stanford--PKU RRAM model \cite{guan2012spice,jiang2014stanford}
+(Verilog-A, \texttt{rram\_v\_1\_0\_0}) in which a conductive-filament gap $g$
+is the state variable. The current law is the bulk hopping/tunneling
+expression
+\begin{equation}
+  I = I_0\, e^{-g/g_0}\, \sinh\!\left(\frac{V_{\mathrm{tb}}}{V_0}\right),
+  \label{eq:stanford_i}
+\end{equation}
+the gap evolves as
+\begin{equation}
+  \frac{dg}{dt} = -\,\nu_0\,
+  e^{-\frac{qE_a}{kT_{\mathrm{cur}}}}\,
+  \sinh\!\left(\frac{\gamma\, a_0}{t_{\mathrm{ox}}}\,
+  \frac{qV_{\mathrm{tb}}}{kT_{\mathrm{cur}}}\right),
+  \qquad
+  \gamma = \gamma_0 - \beta\, \frac{g^{3}}{g_0^{3}},
+  \label{eq:stanford_gap}
+\end{equation}
+with local temperature $T_{\mathrm{cur}} = T_0 + |V_{\mathrm{tb}}
+I\,R_{\mathrm{th}}|$ and $g$ clamped to $[g_{\min}, g_{\max}]$. Here $\nu_0$
+($\equiv$ \texttt{Vel0}) is the gap velocity prefactor, $E_a$ the migration
+barrier, $\gamma$ the local-field enhancement factor, $a_0$ the hopping
+distance, and $F_{\min}$ the minimum switching field below which gap dynamics
+are suppressed. A series resistance $R_s$ (probe/parasitic and soft-compliance
+proxy) is placed in series with the device.
+
+Three implementation details matter for reproducibility:
+
+\subsubsection{Branch-split simulation}
+The measured devices are asymmetric ($|V_{\mathrm{set}}|\neq
+|V_{\mathrm{reset}}|$), while the Verilog-A model is largely symmetric; in
+particular the released HSPICE model overrides $\gamma_0$ under negative bias.
+We therefore simulate SET and RESET as separate transients with
+polarity-split parameters: $V_0$, $\gamma_0$, $E_a$, $F_{\min}$, $\nu_0$,
+$g_{\max}$, and the initial gap $g_{\mathrm{ini}}$ each carry independent
+\_set/\_res values (SET starts in HRS, $g_{\mathrm{ini,set}}\!\approx\!
+\SI{1.4}{\nano\meter}$; RESET starts in LRS,
+$g_{\mathrm{ini,res}}=g_{\min}$), while $I_0$, $g_0$, $\beta$,
+$R_{\mathrm{th}}$, $g_{\min}$, $t_{\mathrm{ox}}$, and $R_s$ are shared.
+This yields a 21-parameter prior vector of which 16 are optimized by default.
+
+\subsubsection{Quasi-static transient mapping}
+Each measured branch is replayed as an HSPICE piecewise-linear (PWL)
+transient whose time stamps follow the measured voltage samples at a nominal
+rate of \SI{e5}{\volt\per\second}; the fitted $\nu_0$ and $E_a$ absorb the
+effective time-scale, since a literal \SI{0.1}{\volt\per\second} sweep is
+infeasible under the model's internal \texttt{\$bound\_step}. Simulated
+current is interpolated back onto the measured time stamps, making the
+comparison robust to HSPICE adaptive stepping, and the source-current sign is
+flipped to the device convention.
+
+\subsubsection{Compliance}
+The SMU compliance is not part of the Verilog-A model; simulated currents are
+clamped to $I_{\mathrm{cc}}=\SI{0.5}{\milli\ampere}$ \emph{after} simulation,
+mirroring how the instrument truncates the measured SET branch.
+
+% -------------------------------------------------------------------------
+\subsection{Stage 3: Regime-Conditioned Physics Priors}
+\label{sec:priors}
+
+Every model parameter $\theta_j$ receives a soft Gaussian prior
+$(\mu_j,\sigma_j)$ and hard physical bounds $[l_j,u_j]$
+(Table~\ref{tab:priors}). Structural constants ($t_{\mathrm{ox}}$, $a_0$,
+$T_0$, $\varepsilon_r$) come from fabrication knowledge; the data-driven
+priors are extracted from the representative curve \emph{inside the windows
+designated by the regime map}, which is the central difference from
+conventional prior extraction on fixed voltage ranges:
+
+\subsubsection{LRS sinh prior ($I_0$, $V_0$)}
+On the ohmic-classified window of \textsc{set-lrs-post} (fallback
+$[0.02,0.6]\,$V if no map is available), excluding the compliance plateau
+($|I|\ge0.95\,I_{\max}$), we fit $I = A\sinh(V/V_0)$ in log-parameter space by
+Nelder--Mead. Since the LRS gap is pinned at $g_{\min}$,
+$A = I_0 e^{-g_{\min}/g_0}$, giving
+\begin{equation}
+  \mu_{I_0} = A\, e^{g_{\min}/g_0^{\mathrm{prior}}},
+  \label{eq:i0prior}
+\end{equation}
+with $\sigma_{I_0}$ propagated from the regression residual and the $g_0$
+prior width.
+
+\subsubsection{PF priors ($\gamma_0$, $E_a$), per branch}
+On the PF-classified window of the HRS segment of each branch
+(\textsc{set-hrs-pre} for SET; \textsc{reset-hrs-post} for RESET), restricted
+to the correct half-sweep, the PF regression Eq.~(\ref{eq:pf}) yields slope
+$\kappa$ and intercept $b$, which map to the model parameters as
+\begin{align}
+  \mu_{\gamma_0} &= 2\kappa\sqrt{\pi\varepsilon\, t_{\mathrm{ox}}}\;
+    \frac{kT}{q}\;\frac{t_{\mathrm{ox}}}{a_0^{2}},
+  &
+  \mu_{E_a} &= -\,b\,\frac{kT}{q},
+  \label{eq:pfmap}
+\end{align}
+clamped to the physical brackets of Table~\ref{tab:priors}
+($\varepsilon=\varepsilon_0\varepsilon_r$).
+
+\emph{Honest fallback.} If the regime map shows \emph{no} PF window for a
+branch---which our data show is the rule rather than the exception for
+oxygen-rich devices whose HRS is ohmic$\to$FN \cite{chowdhury2025mwscas}---no
+PF regression is forced onto non-PF data. Instead $\gamma_0$ and $E_a$ keep
+literature-default means with doubled prior widths
+($\sigma_{\gamma_0}\!=\!12$, $\sigma_{E_a}\!=\!0.4$), and a
+\texttt{pf\_prior\_available=false} flag propagates to the identifiability
+report. This single rule removes a silent failure mode of fixed-window prior
+extraction and is itself a finding: the set of parameters with data-derived
+priors becomes stoichiometry-dependent.
+
+\subsubsection{Remaining priors}
+$R_s$ is seeded from the measured LRS resistance (clamped to
+$[10,10^{5}]\,\Omega$) or, failing that, sized so $V_{\max}/R_s\approx
+I_{\mathrm{cc}}$; $g_0$, $\beta$, $R_{\mathrm{th}}$, $F_{\min}$, $\nu_0$, and
+the gap geometry use literature-centered priors with generous widths
+(Table~\ref{tab:priors}).
+
+\begin{table}[!t]
+\centering
+\caption{Prior specification: mean $\mu$, width $\sigma$, bounds $[l,u]$.
+``Data'' priors are extracted inside regime-map windows; per-branch
+\_set/\_res duplicates share the listed row unless the regime map provides
+branch-specific PF fits.}
+\label{tab:priors}
+\footnotesize
+\begin{tabular}{@{}llllll@{}}
+\toprule
+Param. & Source & $\mu$ & $\sigma$ & $[l,u]$ & Unit\\
+\midrule
+$I_0$        & data (sinh)   & Eq.~(\ref{eq:i0prior}) & $\ge 25\%$ & $[10^{-8}, 9.9\!\times\!10^{-3}]$ & A\\
+$g_0$        & literature    & 0.275 & 0.05 & $[0.15, 0.5]$ & nm\\
+$V_0$        & data (sinh)   & fit   & fit  & $[0.05, 2.0]$ & V\\
+$\gamma_0$   & data (PF)/lit.& Eq.~(\ref{eq:pfmap})/16.5 & $0.4\mu$/12 & $[4, 24]$ & --\\
+$E_a$        & data (PF)/lit.& Eq.~(\ref{eq:pfmap})/0.6 & 0.25/0.4 & $[0.1, 0.99]$ & eV\\
+$\beta$      & literature    & 1.25  & 0.5  & $[0.1, 5]$ & --\\
+$\nu_0$      & literature    & 10    & 5    & $[0.1, 19.9]$ & m/s\\
+$R_{\mathrm{th}}$ & literature & $2.1\!\times\!10^{3}$ & $10^{3}$ & $[1, 10^{6}]$ & K/W\\
+$F_{\min}$   & literature    & 1.4   & 0.42 & $[0.5, 2.99]$ & V/nm\\
+$R_s$        & data (LRS)    & $1/G_{\mathrm{LRS}}$ & $0.5\mu$ & $[10, 10^{6}]$ & $\Omega$\\
+$g_{\min}$   & structure     & 0.1   & 0.05 & $[0.05, 1.0]$ & nm\\
+$g_{\max}$   & structure     & 1.7   & 0.3  & $[1.0, 10]$ & nm\\
+$g_{\mathrm{ini,set}}$ & structure & 1.4 & 0.3 & $[0.5, 2.5]$ & nm\\
+$g_{\mathrm{ini,res}}$ & structure & 0.1 & 0.05 & $[0.05, 0.5]$ & nm\\
+$t_{\mathrm{ox}}$ & fabrication & 5  & 0.5  & $[2, 10]$ & nm\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% -------------------------------------------------------------------------
+\subsection{Stage 4: Mechanism-Aware Objective Function}
+\label{sec:loss}
+
+Let $r_i$ denote the variance-scaled log-current residual at measured point
+$i$ of branch $b\in\{\mathrm{SET},\mathrm{RESET}\}$:
+\begin{equation}
+  r_i = \frac{\log_{10}|I_i^{\mathrm{sim}}(\boldsymbol{\theta})| -
+              \log_{10}|I_i^{\mathrm{meas}}|}{\sigma_i^{\log I}},
+  \qquad
+  \sigma_i^{\log I} = \max\!\left(
+  \frac{\mathrm{IQR}_i}{1.35\,|I_i^{\mathrm{med}}|\ln 10},\, 0.05\right),
+  \label{eq:resid}
+\end{equation}
+where $\mathrm{IQR}_i$ is the interquartile current range across cycles at
+sweep position $i$, i.e., the measured C2C spread acts as the per-point noise
+model (Gaussian-equivalent via the 1.35 IQR factor), floored at 0.05 decades.
+
+\emph{Mechanism-aware weighting.} Each point receives a weight $w_i$ from the
+regime map: $w_i=1$ if the point lies in a window whose dominant mechanism is
+representable by the Stanford current law (ohmic, PF) or in no classified
+window; $w_i=w_{\mathrm{nb}}=0.3$ if it is covered \emph{only} by Schottky or
+FN windows. The state (forward/return half-sweep) of each point is resolved
+by its sequence position so that overlapping voltages map to the correct
+regime. The branch losses are weighted means,
+$L_b = \sum_i w_i r_i^{2} / \sum_i w_i$. This keeps the optimizer from
+spending its error budget reproducing transport physics the model cannot
+express, while \emph{still reporting} unweighted residuals in validation so
+the mismatch outside the model's domain is visible, not hidden. Setting
+$w_{\mathrm{nb}}=1$ exactly recovers the unweighted objective (used in the
+ablation, Sec.~\ref{sec:ablation}).
+
+Two soft regularizers complete the objective:
+\begin{equation}
+  L(\boldsymbol{\theta}) = L_{\mathrm{SET}} + L_{\mathrm{RESET}}
+  + \tfrac12 L_V + \tfrac1{10} L_{\mathrm{prior}},
+  \label{eq:loss}
+\end{equation}
+where $L_V = [(\hat V_{\mathrm{set}}-V_{\mathrm{set}})^2 +
+(\hat V_{\mathrm{reset}}-V_{\mathrm{reset}})^2]/\sigma_V^2$ penalizes
+misplaced switching thresholds ($\hat V$: voltage of extremal
+$d\log_{10}|I|/dV$ in simulation; $\sigma_V$: median measured voltage step)
+and $L_{\mathrm{prior}} = \sum_j (\theta_j-\mu_j)^2/\sigma_j^2$ is the
+Gaussian prior penalty. Simulations returning non-finite currents receive
+$L=10^{6}$. The weights $(1, 1, 0.5, 0.1)$ make the fit dominated by the
+variance-scaled current match, with the priors acting as gentle guidance
+rather than constraint.
+
+% -------------------------------------------------------------------------
+\subsection{Stage 5: Global Bayesian Optimization and Local Refinement}
+\label{sec:bo}
+
+The active subset $\mathcal{A}$ (16 parameters by default: $I_0$, $g_0$,
+$R_s$, and the polarity-split $V_0$, $\gamma_0$, $E_a$, $F_{\min}$, $\nu_0$,
+$g_{\max}$, $g_{\mathrm{ini}}$) is optimized by Gaussian-process Bayesian
+optimization (MATLAB \texttt{bayesopt}) with the expected-improvement-plus
+acquisition function, 48 quasi-random seed evaluations followed by 160
+adaptive iterations, and a deterministic objective (fixed RNG seed~0 for
+reproducibility). Scale-type parameters ($I_0$, $g_0$, $R_s$,
+$R_{\mathrm{th}}$, $\nu_0$, $F_{\min}$) are searched in log space over their
+full physical bounds; structural parameters are searched over
+$[\mu_j-3\sigma_j,\,\mu_j+3\sigma_j]$ clipped to $[l_j,u_j]$. Each objective
+evaluation runs two HSPICE transients (one per branch), so a full fit costs
+$2\times208$ simulator calls.
+
+The BO optimum is then polished by Nelder--Mead (\texttt{fminsearch}, 100
+evaluations) on the active subspace in log-parameter coordinates, which keeps
+all positive physical parameters positive and rejects out-of-bound proposals
+with a large penalty. BO supplies the global search; the simplex removes the
+residual GP-surrogate bias near the optimum.
+
+% -------------------------------------------------------------------------
+\subsection{Stage 6: Operational Identifiability}
+\label{sec:ident}
+
+Identifiability is evaluated \emph{at the fitted optimum}
+$\hat{\boldsymbol{\theta}}$ (the Cram\'er--Rao bound is a property of the
+estimate, not of the prior mean) and reported in two complementary forms.
+
+\subsubsection{Fisher information / Cram\'er--Rao}
+The scaled sensitivity matrix is built by central finite differences in
+log-parameter space with relative step $10^{-3}$:
+\begin{equation}
+  S_{ij} = \frac{\partial \log_{10}|I_i(\boldsymbol{\theta})|}
+                {\partial \ln\theta_j}\bigg|_{\hat{\boldsymbol{\theta}}},
+  \qquad
+  \widetilde S_{ij} = S_{ij}/\sigma_i^{\log I},
+\end{equation}
+over all SET and RESET points, giving
+$F = \widetilde S^{\mathsf T}\widetilde S$. The effective standard deviation
+of each parameter is $\sigma_j^{\mathrm{eff}} = \sqrt{[F^{+}]_{jj}}$
+(pseudo-inverse, since $F$ is rank-deficient by construction when parameters
+are non-identifiable), and the relative uncertainty
+$\rho_j=\sigma_j^{\mathrm{eff}}/|\hat\theta_j|$ classifies each parameter:
+\emph{identifiable} ($\rho_j<0.5$), \emph{weakly identifiable}
+($0.5\le\rho_j<2$), \emph{non-identifiable} ($\rho_j\ge2$). The eigenspectrum
+of $F$ is also reported; near-null eigenvectors expose \emph{sloppy}
+parameter combinations (e.g., $I_0 e^{g/g_0}$ compensation) that pairwise
+statistics miss.
+
+\subsubsection{Profile likelihood}
+Fisher analysis is local and linearized; it can both overstate and understate
+practical identifiability \cite{raue2009}. We therefore compute
+one-dimensional profile scans: for each active parameter, the loss
+Eq.~(\ref{eq:loss}) is re-evaluated at seven points spanning
+$[\max(l_j,\hat\theta_j-2\sigma_j),\,\min(u_j,\hat\theta_j+2\sigma_j)]$ with
+all other parameters held at $\hat{\boldsymbol{\theta}}$. Using
+$\chi^2$-style thresholds on the loss rise at the window edges,
+$\Delta=\min(\Delta_{\mathrm{lo}},\Delta_{\mathrm{hi}})$: $\Delta<1$ flags the
+profile as \emph{flat} (practically non-identifiable), $1\le\Delta<4$ as weak,
+$\Delta\ge4$ as identifiable. Flat directions found here are direct,
+assumption-free evidence that DC data cannot constrain the parameter.
+
+\subsubsection{Reporting and refitting policy}
+Both verdicts are merged into a per-device \emph{identifiability report}
+(parameter, $\hat\theta_j$, $\rho_j$, Fisher class, profile verdict,
+PF-prior availability). Parameters classified non-identifiable are
+\emph{reported at their prior values with unbounded uncertainty}---they are
+explicitly not claimed as extracted. Optionally, a second fitting pass freezes
+them at the prior mean and re-optimizes the identifiable subset
+(\texttt{auto\_active} mode), which removes sloppy-direction wandering from
+the point estimate. Because the regime map controls which priors are
+data-driven, identifiability becomes mechanism-resolved: a device whose HRS
+shows no PF window is \emph{expected} to lose $\gamma_0$/$E_a$
+identifiability, turning the analysis into a falsifiable physical statement
+linking deposition stoichiometry to extractable parameters.
+
+% -------------------------------------------------------------------------
+\subsection{Stage 7: Validation and Cycle-to-Cycle Uncertainty}
+\label{sec:uncertainty}
+
+\subsubsection{Residual diagnostics}
+For the final $\hat{\boldsymbol{\theta}}$ we report per-branch RMSE and MAE in
+$\log_{10}$ decades (both weighted and unweighted, so the error inside and
+outside the model's validity domain is distinguishable) and the
+Durbin--Watson statistic of the residual sequence; DW values far from~2
+indicate structured residuals, i.e., systematic model mismatch rather than
+noise.
+
+\subsubsection{Cluster bootstrap}
+C2C variability is propagated to parameter uncertainty by a cluster bootstrap
+over whole cycles: from the per-cycle ensemble of the fitted device, $B=120$
+resamples draw cycles with replacement; each resample is collapsed to a
+median curve by (branch, sweep position)---preserving the hysteresis
+structure---and refit with a reduced BO budget ($8+24$ evaluations, seeded
+from the same priors). The 2.5\% and 97.5\% quantiles of the resulting
+parameter draws give 95\% confidence intervals, and the coefficient of
+variation per parameter and condition quantifies which parameters are stable
+device properties versus cycle-dependent quantities. Resampling whole cycles
+(rather than points) respects the strong intra-cycle correlation of $I$--$V$
+data; pointwise bootstrap would underestimate the intervals.
+
+\subsubsection{Leave-one-cycle-out}
+Optionally, each cycle is held out in turn, the model is refit to the
+remainder, and the held-out RMSE distribution is reported, verifying that the
+extracted parameter set generalizes across cycles rather than memorizing the
+medoid.
+
+% -------------------------------------------------------------------------
+\subsection{Ablation Design}
+\label{sec:ablation}
+
+To isolate the contribution of each ingredient, every condition is fitted
+four ways under identical model, data, and evaluation budget:
+\begin{enumerate}
+  \item \textbf{physics\_regime\_bo} (proposed): regime-conditioned priors +
+        mechanism-aware weighting + BO;
+  \item \textbf{physics\_bo}: physics priors on fixed legacy windows,
+        no regime information ($w_{\mathrm{nb}}=1$);
+  \item \textbf{plain\_bo}: uninformative priors ($\sigma_j\to\infty$,
+        search over full physical bounds) + BO --- the black-box baseline;
+  \item \textbf{physics\_nobo}: regime-conditioned prior means without any
+        optimization --- the un-tuned physics initial guess.
+\end{enumerate}
+Comparing (1) vs.\ (2) isolates the regime guidance; (1) vs.\ (3) the physics
+priors; (1) vs.\ (4) the optimizer. All variants are scored with the
+\emph{unweighted} validation metrics to avoid favoring the weighted-loss
+variants by construction.
+
+% -------------------------------------------------------------------------
+\subsection{Implementation, Reproducibility, and Complexity}
+\label{sec:impl}
+
+Stages 0--2 are implemented in Python~3 (NumPy/pandas/Matplotlib); stages
+3--7 in MATLAB driving Synopsys HSPICE (W-2024.09) through generated PWL
+netlists referencing the Stanford \texttt{rram\_v\_1\_0\_0} Verilog-A source.
+All stages are configuration-driven (YAML) with fixed RNG seeds; each fit
+archives its priors, BO trace, refined optimum, Fisher matrix, profile scans,
+identifiability report, and validation residuals. The dominant cost is HSPICE:
+a point-estimate fit is $2\times(48+160+100)$ transients; profile likelihood
+adds $2\times7\times|\mathcal{A}|$; the bootstrap adds
+$2\times120\times32$ per condition. Wall-clock is a few hours per condition
+on a single workstation; all conditions are embarrassingly parallel.
+
+% ---- Algorithm 2 ---------------------------------------------------------
+\begin{algorithm}[!t]
+\caption{Physics-guided, identifiability-aware extraction (Stages 3--7)}
+\label{alg:fit}
+\footnotesize
+\KwIn{Representative curve $D$; per-cycle ensemble $\mathcal{E}$; regime map
+  $\mathcal{R}$ (Alg.~\ref{alg:regimes}); config (bounds, budgets, seeds)}
+\KwOut{$\hat{\boldsymbol{\theta}}$; identifiability report; 95\% CIs;
+  validation diagnostics}
+\textbf{Priors:} fit LRS sinh on the ohmic window of $\mathcal{R}$
+  $\rightarrow (\mu_{I_0},\mu_{V_0})$; per branch, fit PF regression on the
+  PF window of $\mathcal{R}$ $\rightarrow (\mu_{\gamma_0},\mu_{E_a})$;
+  \textbf{if} no PF window \textbf{then} keep defaults, double $\sigma$, flag
+  \texttt{pf\_available=false}\;
+assemble $(\boldsymbol{\mu},\boldsymbol{\sigma},\mathbf{l},\mathbf{u})$ for
+  all 21 parameters (Table~\ref{tab:priors}); compute point weights
+  $w_i\in\{1, w_{\mathrm{nb}}\}$ from $\mathcal{R}$\;
+\textbf{Global search:} $\boldsymbol{\theta}^{\mathrm{BO}} \leftarrow$
+  \texttt{bayesopt}$(L,\mathcal{A}$, EI-plus, $48+160$ evals, log transforms
+  for scale params$)$ with $L$ from Eq.~(\ref{eq:loss}); each $L$-call $=$ two
+  HSPICE PWL transients $+$ compliance clamp\;
+\textbf{Refine:} $\hat{\boldsymbol{\theta}} \leftarrow$ Nelder--Mead on
+  $\ln\boldsymbol{\theta}_{\mathcal{A}}$ from $\boldsymbol{\theta}^{\mathrm{BO}}$
+  (100 evals, bound-rejecting)\;
+\textbf{Fisher at optimum:} central differences ($10^{-3}$ rel.\ step)
+  $\rightarrow F$; $\rho_j \leftarrow \sqrt{[F^{+}]_{jj}}/|\hat\theta_j|$;
+  classify by $\rho_j < 0.5 / 2.0$\;
+\textbf{Profile likelihood:} \ForEach{$\theta_j\in\mathcal{A}$}{
+  scan 7 points on $[\hat\theta_j\pm2\sigma_j]\cap[l_j,u_j]$, others fixed;
+  $\Delta\leftarrow$ min edge loss-rise; verdict by $\Delta<1/4$\;}
+write identifiability report (Fisher class $+$ profile verdict $+$
+  \texttt{pf\_available}); \textbf{optional:} freeze non-identifiable
+  parameters at $\boldsymbol{\mu}$ and re-run global search on the rest\;
+\textbf{Uncertainty:} \For{$b=1$ \KwTo $120$}{
+  resample cycles of $\mathcal{E}$ with replacement; aggregate by (branch,
+  sweep position); refit with reduced budget ($8+24$)\;}
+CIs $\leftarrow$ bootstrap 2.5/97.5\% quantiles; optional LOCO held-out RMSE\;
+\textbf{Validate:} weighted and unweighted RMSE/MAE (decades), Durbin--Watson
+  per branch; overlay plots\;
+\end{algorithm}
+
+% ---- Flowchart -----------------------------------------------------------
+\begin{figure*}[!t]
+\centering
+\begin{tikzpicture}[node distance=0.42cm and 0.9cm]
+
+% ---- left column: data preparation ----
+\node[datafile] (raw) {Raw B1500 CSVs (S1--S12)\\bipolar sweeps, $\sim$tens of cycles};
+\node[stage, below=of raw] (s0) {\textbf{Stage 0:} parse blocks, infer branch,\\quality screens (points, span, range, decades)};
+\node[stage, below=of s0] (s1) {\textbf{Stage 1:} device selection,\\\emph{medoid} representative cycle};
+\node[datafile, below=of s1] (rep) {representative curve\\($V$, $I$ median, IQR, sequence idx)};
+\node[datafile, right=0.7cm of rep] (ens) {per-cycle\\ensemble};
+\node[stage, below=of rep] (s2) {\textbf{Stage 2 (Alg.~1):} conduction-regime\\classification: ohmic/PF/Schottky/FN,\\BIC + $\varepsilon_r^{\mathrm{dyn}}$ admissibility, per state};
+\node[datafile, below=of s2] (rmap) {regime map\\(+ \texttt{stanford\_valid}, C2C mechanism stability)};
+
+% ---- right column: fitting ----
+\node[stage, right=1.6cm of s2.north east, anchor=north west, yshift=2.30cm] (s3) {\textbf{Stage 3:} regime-conditioned priors\\sinh on ohmic win.\ $\to I_0,V_0$;\\PF win.\ $\to \gamma_0,E_a$ per branch;\\no PF win.\ $\to$ defaults, $2\sigma$, flag};
+\node[stage, below=of s3] (s4) {\textbf{Stage 4:} mechanism-aware loss, Eq.~(\ref{eq:loss})\\$w_i{=}1$ (ohmic/PF) vs.\ $w_i{=}0.3$ (Schottky/FN)};
+\node[stage, below=of s4] (s5) {\textbf{Stage 5:} BO (EI-plus, $48{+}160$ evals,\\log-space scale params) $\to$ Nelder--Mead\\polish; each eval $=$ 2 HSPICE transients};
+\node[stage, below=of s5] (s6) {\textbf{Stage 6:} identifiability at optimum:\\Fisher/CRLB ($\rho_j{<}0.5/2$) $+$ 7-pt profile\\likelihood ($\Delta{<}1/4$)};
+\node[decision, below=0.5cm of s6] (dec) {non-identifiable\\params present?};
+\node[stage, below=0.5cm of dec] (s7) {\textbf{Stage 7:} cluster bootstrap over cycles\\($B{=}120$, reduced budget) $\to$ 95\% CIs;\\LOCO; weighted+unweighted RMSE, DW};
+\node[sideout, right=0.55cm of dec, yshift=0.0cm] (freeze) {freeze at prior mean,\\refit identifiable subset\\(\texttt{auto\_active})};
+\node[datafile, below=of s7] (out) {identifiability report, parameter table\\$+$ CIs, regime/stability maps, ablation};
+
+% ---- arrows ----
+\draw[arrow] (raw) -- (s0);
+\draw[arrow] (s0) -- (s1);
+\draw[arrow] (s1) -- (rep);
+\draw[arrow] (s1.south east) -- (ens.north);
+\draw[arrow] (rep) -- (s2);
+\draw[dasharrow] (ens.south) to[out=-90,in=20] node[right,font=\tiny,xshift=2pt]{stability} (s2.east);
+\draw[arrow] (s2) -- (rmap);
+\draw[arrow] (rmap.east) to[out=0,in=180] (s3.west);
+\draw[arrow] (rep.east) to[out=0,in=200, looseness=0.8] (s3.west);
+\draw[arrow] (s3) -- (s4);
+\draw[arrow] (s4) -- (s5);
+\draw[arrow] (s5) -- (s6);
+\draw[arrow] (s6) -- (dec);
+\draw[arrow] (dec) -- node[left,font=\tiny]{no / report-only} (s7);
+\draw[dasharrow] (dec.east) -- node[above,font=\tiny]{optional} (freeze.west);
+\draw[dasharrow] (freeze.north) to[out=90,in=0] (s5.east);
+\draw[dasharrow] (ens.south east) to[out=-60,in=30, looseness=1.2] node[right,font=\tiny]{cycles} (s7.north east);
+\draw[arrow] (s7) -- (out);
+
+% ---- group boxes ----
+\node[draw, dashed, rounded corners, inner sep=5pt, fit=(raw)(s0)(s1)(rep)(ens)(s2)(rmap),
+  label={[font=\scriptsize\bfseries]north west:Data preparation \& transport physics (Python)}] {};
+\node[draw, dashed, rounded corners, inner sep=5pt, fit=(s3)(s4)(s5)(s6)(dec)(s7)(freeze)(out),
+  label={[font=\scriptsize\bfseries]north east:Physics-guided fitting \& reporting (MATLAB + HSPICE)}] {};
+\end{tikzpicture}
+\caption{Proposed extraction pipeline. The regime map produced by
+Algorithm~\ref{alg:regimes} (left) conditions the priors, the fitting domain,
+and the interpretation of identifiability (right). Dashed paths are optional:
+per-cycle mechanism stability, the bootstrap ensemble, and the
+freeze-and-refit pass for non-identifiable parameters.}
+\label{fig:flowchart}
+\end{figure*}
+
+% -------------------------------------------------------------------------
+\subsection{Threats to Validity and Design Limitations}
+\label{sec:limits}
+
+We document the known limitations explicitly. (i) The Stanford current law
+cannot represent Schottky or FN transport; the proposed method does not fix
+this structural limit---it bounds its impact (weighting) and reports where it
+binds (regime map, unweighted residuals). Extending the model with parallel
+interface/tunneling branches is deliberately left to future work to preserve
+SPICE compatibility of the extracted parameter set. (ii) PF/Schottky
+discrimination relies on the $\varepsilon_r^{\mathrm{dyn}}$ bracket $[1,60]$;
+the bracket is generous and every assignment ships with its
+$\varepsilon_r^{\mathrm{dyn}}$ so the sensitivity of conclusions to the
+bracket can be audited. (iii) The quasi-static transient mapping means
+$\nu_0$ and $E_a$ absorb the effective sweep time-scale; their absolute values
+should be compared across conditions, not across measurement protocols.
+(iv) Profile likelihoods are one-dimensional and may miss higher-order sloppy
+manifolds; the Fisher eigenspectrum partially covers this. (v) The released
+HSPICE Verilog-A model overrides $\gamma_0$ under negative bias, so
+$\gamma_{0,\mathrm{res}}$ acts through a different effective path than
+$\gamma_{0,\mathrm{set}}$; the branch-split simulation absorbs, but does not
+remove, this asymmetry. (vi) The medoid cycle anchors the point estimate to
+one real sweep; bootstrap CIs, not the point estimate, carry the C2C
+statement.
+
+% =========================================================================
+% References used by this section (replace with your .bib entries)
+% =========================================================================
+\begin{thebibliography}{9}\footnotesize
+
+\bibitem{guan2012spice}
+X.~Guan, S.~Yu, and H.-S.~P. Wong, ``A SPICE compact model of metal oxide
+resistive switching memory with variations,'' \emph{IEEE Electron Device
+Lett.}, vol.~33, no.~10, pp. 1405--1407, Oct. 2012.
+
+\bibitem{jiang2014stanford}
+Z.~Jiang \emph{et~al.}, ``A compact model for metal--oxide resistive random
+access memory with experiment verification,'' \emph{IEEE Trans. Electron
+Devices}, vol.~63, no.~5, pp. 1884--1892, May 2016.
+
+\bibitem{chowdhury2025mwscas}
+M.~T.~R. Chowdhury, A.~Moazzeni, and G.~Tutuncuoglu, ``Atomic-scale insights
+into the switching mechanisms of RRAM devices,'' in \emph{Proc. IEEE 68th Int.
+Midwest Symp. Circuits Syst. (MWSCAS)}, Lansing, MI, USA, 2025, pp. 518--522.
+
+\bibitem{moazzeni2023}
+A.~Moazzeni, M.~T.~R. Chowdhury, and G.~Tutuncuoglu, ``The impact of operation
+conditions on potentiation, depression and endurance dynamics of tantalum
+oxide RRAMs,'' in \emph{Proc. IEEE Int. Integr. Rel. Workshop (IIRW)}, 2023.
+
+\bibitem{chiu2014}
+F.-C. Chiu, ``A review on conduction mechanisms in dielectric films,''
+\emph{Adv. Mater. Sci. Eng.}, vol. 2014, Art. no. 578168, 2014.
+
+\bibitem{raue2009}
+A.~Raue \emph{et~al.}, ``Structural and practical identifiability analysis of
+partially observed dynamical models by exploiting the profile likelihood,''
+\emph{Bioinformatics}, vol.~25, no.~15, pp. 1923--1929, 2009.
+
+\end{thebibliography}
+
+\end{document}
