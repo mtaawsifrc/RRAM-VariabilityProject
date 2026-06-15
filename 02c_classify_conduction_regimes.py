@@ -339,7 +339,7 @@ def build_parser():
                     help="output filename prefix (default: rep CSV stem)")
     ap.add_argument("--ensemble-csv", default=None,
                     help="per-cycle ensemble CSV (02b) for mechanism stability")
-    ap.add_argument("--tox", type=float, default=5e-9, help="oxide thickness (m)")
+    ap.add_argument("--tox", type=float, default=7e-9, help="oxide thickness (m)")
     ap.add_argument("--temperature", type=float, default=300.0, help="T (K)")
     ap.add_argument("--eps-r-min", type=float, default=1.0,
                     help="min plausible dynamic eps_r for PF/Schottky")

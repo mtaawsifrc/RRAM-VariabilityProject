@@ -1,5 +1,5 @@
 T_K: 300
-tox: 5.0e-9
+tox: 7.0e-9
 a0: 2.5e-10
 eps_r_TaOx: 25
 gap_min: 1.0e-10

@@ -54,6 +54,13 @@ function fish = stage2_identifiability(priors, setB, resetB, cfg, theta0_in)
     ratio = lam ./ max(max(lam), realmin);
     eff_sigma = sqrt(max(diag(pinv(F)), 0))';
     rel_sigma = eff_sigma ./ max(abs(theta0), realmin);
+    % pinv zeroes null-space directions, so a parameter with (near-)zero
+    % weighted sensitivity gets eff_sigma = 0 and would classify as
+    % "identifiable" when the data carry no information about it at all.
+    % Flag such directions as unbounded instead.
+    col_norm = sqrt(sum(Sw.^2, 1));
+    no_info = (col_norm <= max(1e-12, 1e-9 * max(col_norm))) | (eff_sigma <= 0);
+    rel_sigma(no_info) = Inf;
     well_idx = find(rel_sigma < 0.5);
     nonid_idx = setdiff(1:nP, well_idx);
 

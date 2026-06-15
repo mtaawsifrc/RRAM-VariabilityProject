@@ -20,7 +20,7 @@ function tvec = assemble_branch(theta, names, model_names, branch, cfg)
 %   then a shared entry "<name>", then a cfg override, then a hard default.
     defaults = struct('I0', 1e-4, 'g0', 2.75e-10, 'V0', 0.43, 'Vel0', 10, ...
         'gamma0', 16.5, 'beta', 1.25, 'Ea', 0.6, 'Rth', 2.1e3, 'F_min', 1.4e9, ...
-        'gap_min', 1e-10, 'gap_max', 1.7e-9, 'gap_ini', 1.4e-9, 'tox', 5e-9, 'Rs', 1e4);
+        'gap_min', 1e-10, 'gap_max', 1.7e-9, 'gap_ini', 1.4e-9, 'tox', 7e-9, 'Rs', 1e4);
     tvec = zeros(1, numel(model_names));
     for i = 1:numel(model_names)
         m = model_names{i};

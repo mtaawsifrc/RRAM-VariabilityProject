@@ -4,7 +4,7 @@
 # regime_map_csv (and the ensemble for bootstrap/LOCO CIs) are injected per
 # condition by 07_run_final.py / 06_run_variability.py.
 T_K: 300
-tox: 5.0e-9
+tox: 7.0e-9
 a0: 2.5e-10
 eps_r_TaOx: 25
 gap_min: 1.0e-10
@@ -28,6 +28,10 @@ keep_failed_hspice: 1
 run_fisher: 1
 bo_n_init: 48
 bo_n_iter: 160
+# Raised from the 100-eval default: archived profile scans found points with
+# lower loss than the refined optimum (negative deltas), i.e. Nelder-Mead had
+# not converged within 100 evaluations.
+refine_max_fun_evals: 300
 rng_seed: 0
 hspice_bin: hspice
 va_path: ../templates/rram_v_1_0_0_hspice.va

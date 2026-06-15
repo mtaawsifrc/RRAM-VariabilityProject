@@ -65,6 +65,14 @@ function prof = stage4b_profile_likelihood(refined, setB, resetB, cfg, outdir)
         end
         d_lo = L(1) - L0;
         d_hi = L(end) - L0;
+        if min(L) < L0 - 1e-6
+            % The 1-D scan found a lower loss than the reported optimum: the
+            % local refinement did not converge. The profile verdict for this
+            % parameter is unreliable; refit with a larger refine budget.
+            warning('stage4b:notConverged', ...
+                '%s: scan found loss %.6g < optimum %.6g; refine not converged', ...
+                nm, min(L), L0);
+        end
         d_min = min(d_lo, d_hi);
         if d_min < 1
             verdict = 'flat_non_identifiable';
