@@ -69,10 +69,14 @@ function val = stage5_validate(refined, fish, setB, resetB, data, cfg, outdir)
     cfg_b.bo_n_init = field_or(cfg, 'bootstrap_bo_n_init', 8);
     cfg_b.bo_n_iter = field_or(cfg, 'bootstrap_bo_n_iter', 24);
     theta_bs = nan(nB, numel(refined.theta));
-    rng(field_or(cfg, 'rng_seed', 0) + 12345);   % reproducible, distinct from BO seed
+    base_seed = field_or(cfg, 'rng_seed', 0);
     for b = 1:nB
         % Cluster bootstrap: resample whole cycles with replacement, then
         % aggregate into one median curve so each refit sees a single sweep.
+        % Re-seed per draw: stage3_bayesopt_driver resets the global RNG to a
+        % fixed seed, so a single rng() before the loop would make every draw
+        % after the first identical (observed: 200 draws -> 2 unique vectors).
+        rng(base_seed + 12345 + b);
         draw = cycles(randi(numel(cycles), [numel(cycles), 1]));
         boot = aggregate_cycles(stack_cycles(data, draw));
         bs = boot(upper(string(boot.branch)) == "SET", :);

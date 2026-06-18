@@ -1,0 +1,89 @@
+\relax 
+\citation{wong2012metal,ielmini2018inmemory}
+\citation{guan2012spice,jiang2016verification}
+\citation{transtrum2015sloppiness}
+\@writefile{toc}{\contentsline {section}{\numberline {I}Introduction}{1}{}\protected@file@percent }
+\citation{chowdhury2025mwscas,moazzeni2023}
+\citation{chiu2014}
+\citation{guan2012spice,jiang2016verification}
+\@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces Deposition design of experiments. Center point (27.5\%, \SI {162.5}{\watt }) is replicated four times (S9--S12).}}{2}{}\protected@file@percent }
+\newlabel{tab:doe}{{I}{2}}
+\@writefile{toc}{\contentsline {section}{\numberline {II}Devices and Measurement Design}{2}{}\protected@file@percent }
+\newlabel{sec:devices}{{II}{2}}
+\@writefile{toc}{\contentsline {section}{\numberline {III}Extraction Methodology}{2}{}\protected@file@percent }
+\newlabel{sec:method}{{III}{2}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-A}}Representative Medoid Cycle}{2}{}\protected@file@percent }
+\newlabel{sec:medoid}{{\mbox  {III-A}}{2}}
+\newlabel{eq:medoid-score}{{1}{2}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-B}}Conduction-Regime Classification}{2}{}\protected@file@percent }
+\newlabel{sec:regimes}{{\mbox  {III-B}}{2}}
+\newlabel{eq:ohmic}{{2}{2}}
+\newlabel{eq:pf}{{3}{2}}
+\newlabel{eq:schottky}{{4}{2}}
+\newlabel{eq:fn}{{5}{2}}
+\newlabel{eq:eps-dyn}{{6}{2}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-C}}Compact Model and HSPICE Forward Map}{2}{}\protected@file@percent }
+\newlabel{sec:model}{{\mbox  {III-C}}{2}}
+\newlabel{eq:stanford-current}{{7}{2}}
+\newlabel{eq:stanford-gap}{{8}{2}}
+\citation{snoek2012practical}
+\citation{raue2009,transtrum2015sloppiness}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-D}}Regime-Conditioned Priors}{3}{}\protected@file@percent }
+\newlabel{sec:priors}{{\mbox  {III-D}}{3}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-E}}Mechanism-Aware Objective}{3}{}\protected@file@percent }
+\newlabel{sec:loss}{{\mbox  {III-E}}{3}}
+\newlabel{eq:loss}{{9}{3}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-F}}Global Search and Local Refinement}{3}{}\protected@file@percent }
+\newlabel{sec:opt}{{\mbox  {III-F}}{3}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-G}}Operational Identifiability}{3}{}\protected@file@percent }
+\newlabel{sec:ident}{{\mbox  {III-G}}{3}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-H}}Cycle-to-Cycle Variability}{3}{}\protected@file@percent }
+\newlabel{sec:boot}{{\mbox  {III-H}}{3}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-I}}Ablation Design}{3}{}\protected@file@percent }
+\newlabel{sec:ablation-design}{{\mbox  {III-I}}{3}}
+\@writefile{toc}{\contentsline {section}{\numberline {IV}Results}{3}{}\protected@file@percent }
+\newlabel{sec:results}{{IV}{3}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}Conduction Regimes: Ohmic LRS, Schottky-Limited HRS}{3}{}\protected@file@percent }
+\newlabel{sec:res-regimes}{{\mbox  {IV-A}}{3}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Conduction-regime classification of the four resistance-state segments of the S1 representative cycle. LRS segments are ohmic ($R^2\ge 0.98$); HRS segments are dominated by Schottky emission, with a Fowler--Nordheim window near the SET transition. No Poole--Frenkel window is admitted by the $\varepsilon _r^{\mathrm  {dyn}}$ test.}}{4}{}\protected@file@percent }
+\newlabel{fig:regimes}{{1}{4}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-B}}Point-Estimate Fit Quality}{4}{}\protected@file@percent }
+\newlabel{sec:res-fit}{{\mbox  {IV-B}}{4}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-C}}Identifiability: What DC Data Actually Constrain}{4}{}\protected@file@percent }
+\newlabel{sec:res-ident}{{\mbox  {IV-C}}{4}}
+\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Validation fit quality per condition: unweighted RMSE of $\qopname  \relax o{log}_{10}|I|$ (decades) and Durbin--Watson statistics.}}{4}{}\protected@file@percent }
+\newlabel{tab:fitquality}{{II}{4}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-D}}Ablation: What Each Ingredient Buys}{4}{}\protected@file@percent }
+\newlabel{sec:res-ablation}{{\mbox  {IV-D}}{4}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Dominant conduction mechanism and cycle-to-cycle assignment stability for each resistance-state segment and deposition condition. The post-SET LRS is consistently ohmic, whereas the post-RESET HRS is Schottky-dominant for all twelve conditions.}}{5}{}\protected@file@percent }
+\newlabel{fig:mechanism-map}{{2}{5}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Measured versus fitted $I$--$V$ for condition S1 (left) and log-current residuals along the sweep (right). The fit reproduces the butterfly hysteresis, both transitions, and the compliance plateau; the residual concentrates at the SET transition and the Schottky-limited HRS approach.}}{5}{}\protected@file@percent }
+\newlabel{fig:fit-example}{{3}{5}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Fisher relative uncertainty $\sigma _\theta /|\theta |$ (log color scale) for the 16 active Stanford parameters across the twelve conditions; dots mark the nominal identifiable class ($\rho <0.5$). The very large condition numbers require these local classifications to be interpreted together with cycle-bootstrap stability.}}{5}{}\protected@file@percent }
+\newlabel{fig:ident}{{4}{5}}
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Ablation over all 12 conditions: unweighted validation RMSE (decades), mean $\pm $ standard deviation across conditions.}}{5}{}\protected@file@percent }
+\newlabel{tab:ablation}{{III}{5}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-E}}Cycle-to-Cycle Variability}{5}{}\protected@file@percent }
+\newlabel{sec:res-variability}{{\mbox  {IV-E}}{5}}
+\bibcite{wong2012metal}{1}
+\bibcite{ielmini2018inmemory}{2}
+\bibcite{guan2012spice}{3}
+\bibcite{jiang2016verification}{4}
+\bibcite{transtrum2015sloppiness}{5}
+\bibcite{chowdhury2025mwscas}{6}
+\bibcite{moazzeni2023}{7}
+\bibcite{chiu2014}{8}
+\bibcite{raue2009}{9}
+\bibcite{snoek2012practical}{10}
+\bibcite{lee2011fast}{11}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Cycle-to-cycle parameter variability from 200 cluster-bootstrap refits per condition. Color denotes $\qopname  \relax o{log}_{10}(\mathrm  {CV})$. Series resistance and velocity prefactors are the least stable, while the branch voltage scales are comparatively repeatable.}}{6}{}\protected@file@percent }
+\newlabel{fig:param-cv}{{5}{6}}
+\@writefile{toc}{\contentsline {section}{\numberline {V}Discussion}{6}{}\protected@file@percent }
+\newlabel{sec:discussion}{{V}{6}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-A}}Implications for Compact-Model Users}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-B}}Model Adequacy for TaO$_x$}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-C}}Limitations}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VI}Conclusion}{6}{}\protected@file@percent }
+\newlabel{sec:conclusion}{{VI}{6}}
+\@writefile{toc}{\contentsline {section}{References}{6}{}\protected@file@percent }
+\gdef \@abspage@last{6}

@@ -825,7 +825,7 @@ def main():
     p.add_argument("--beta", type=float, default=0.8)
     p.add_argument("--gamma0", type=float, default=16.0)
     p.add_argument("--Rth", type=float, default=2.1e3)
-    p.add_argument("--tox", type=float, default=7.5e-9)
+    p.add_argument("--tox", type=float, default=7e-9)
     p.add_argument("--deltaGap0", "--delta-gap0", dest="deltaGap0", type=float, default=1e-4)
 
     p.add_argument("--ramp-time", default="4m")

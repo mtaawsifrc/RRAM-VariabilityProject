@@ -41,17 +41,19 @@ COMMON = {"run_fisher": 0, "run_loco": 0, "run_bootstrap": 0, "run_profile": 0}
 
 
 def ensure_regime_map(rep_csv: str) -> str:
-    """Build (if needed) and return the 02c regime map for a rep curve."""
+    """Build (always rebuilt) and return the 02c regime map for a rep curve.
+
+    Rebuilding unconditionally is cheap and avoids silently reusing a map
+    produced under different physics settings (e.g. an older tox)."""
     rep = Path(rep_csv)
     prefix = rep.stem.replace("_representative_curve_FIXED", "")
     map_path = rep.parent / f"{prefix}_regime_map.csv"
-    if not map_path.is_file():
-        rc = subprocess.call([sys.executable,
-                              str(ROOT / "02c_classify_conduction_regimes.py"),
-                              "--rep-csv", str(rep),
-                              "--output-dir", str(rep.parent)])
-        if rc != 0 or not map_path.is_file():
-            raise RuntimeError(f"regime map build failed for {rep}")
+    rc = subprocess.call([sys.executable,
+                          str(ROOT / "02c_classify_conduction_regimes.py"),
+                          "--rep-csv", str(rep),
+                          "--output-dir", str(rep.parent)])
+    if rc != 0 or not map_path.is_file():
+        raise RuntimeError(f"regime map build failed for {rep}")
     return str(map_path)
 
 
