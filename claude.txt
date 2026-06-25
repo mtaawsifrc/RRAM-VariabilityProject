@@ -1,0 +1,78 @@
+
+################ Problems #####################
+What the paper does well (so we don't lose it)
+The core thesis — "report a compact-model calibration as fit quality + generalization + identifiability + regime validity, not a single overlay" — is genuinely useful and underserved in the RRAM literature. The regime-gated fitting and the "post-RESET HRS is Schottky, which the Stanford bulk law lacks" finding are real, well-supported results. Keep that spine. My suggestions strengthen the legs it stands on and add one or two genuinely novel hooks.
+
+A. Robustness gaps a reviewer will find (fix these first)
+A1 — Your bootstrap CIs don't contain your own point estimates. This is the most serious one. In results/variability/parameter_cis.csv, 6 of 192 parameters have θ̂ outside their 95% CI — and they are exactly the parameters you build the paper on: V0_set/V0_res for S2, S5, S7 (e.g. S2 V0_set θ=1.000 but CI=[0.425, 0.965]). The cause is in 06_run_variability.py:80-81: the bootstrap refits use an 8+24 evaluation budget vs. the 48+160+100 of the headline fit (main_alt_codex.tex:397-401). So the cheap bootstrap optima are biased relative to the reported θ̂, and the plotted "deposition trend" point can sit outside its own error bar. Fix: either report the bootstrap median as the plotted estimate, or run the bootstrap at (closer to) full budget, and state the interval type (percentile/BCa). Until this is consistent, Fig. 7 is attackable.
+
+A2 — Several CIs are set by the prior box, not the data. Every Rs lower bound rails at ≈10 Ω and every Vel0 upper bound at ≈18.7 (parameter_cis.csv). The claim "Rs spans one to two decades" is partly an artifact of the box edges. This is easy to turn from a weakness into strength: report the fraction of bootstrap draws pinned to a bound, and a one-line box-sensitivity check. Then "non-identifiable" is a data statement, not a box statement.
+
+A3 — The "generalization" test is weaker than its billing, and one condition contradicts it. The held-out test scores the same fitted curve against other cycles ([08_paper_alt_figures.py], heldout_validation.csv). Because cycle-to-cycle spread is small, held-out ≈ in-sample is nearly guaranteed and mainly shows the cycles are similar, not that the parameters generalize. And the headline "gap ≈ 0.04 decade" is an average hiding S1 RESET: in-sample 0.689 → held-out median 0.999 (a 0.31-decade gap; frac_within_iqr=0.178). Fix: (i) report the per-condition gap and discuss S1 explicitly; (ii) add the genuinely stronger test — fit cycles independently and show the parameters cluster (you already have the machinery in the bootstrap). That converts "overlay generalizes" into "parameters are reproducible," which is the claim you actually want.
+
+A4 — Profile likelihood is only run for S1–S4. Confirmed: only results/S1_taofit … S4 have profile_likelihood.csv; S5–S12 don't. The paper already concedes this (main_alt_codex.tex:819-822). The verdicts are a strong, citable structural result ("flat_non_identifiable" for ~all coordinates) — finishing all 12 at a common optimum is cheap and removes a reviewer footnote while elevating the structural-identifiability finding.
+
+B. Novelty extensions (grounded in data you already have)
+B1 — Sloppy-model eigenanalysis instead of just condition numbers (highest-value novelty). You cite Transtrum/Gutenkunst sloppiness but only report CV and condition numbers (10¹⁸–10⁶⁶). The Fisher matrices already exist — compute the eigenvalue spectrum and eigenvectors. This (a) is novel for RRAM compact models specifically, (b) explains why V0 is stiff and Rs/Vel0 are sloppy, and (c) lets you name the identifiable parameter combination (the "switching-field combination" you already gesture at in main_alt_codex.tex:638-639) rigorously rather than by hand. This is the cleanest path to "novel" that needs no new measurement.
+
+B2 — Report an identifiable reparameterization, then put that on the response surface. Following B1: define the stiff combination(s) explicitly and show those carry the deposition signal robustly while the raw parameters don't. "Calibrate and report RRAM compact models in their identifiable coordinates" is a concrete, publishable practical contribution — and it's the natural payoff of your whole identifiability narrative.
+
+B3 — Use the DOE as a DOE. You built a face-centered factorial with 4 replicated center points (S9–S12) but never use its statistical power. The replicates give pure error, enabling a lack-of-fit test and a real significance test for whether V0 depends on O₂/power vs. noise. Right now the trend is asserted by eye ("tends to be lower at the 35% corners," main_alt_codex.tex:720-724). A proper RSM/ANOVA makes Fig. 7 quantitative and is novel in this niche (no RRAM compact-model paper runs formal DOE significance on identifiability-screened parameters).
+
+B4 — Variance decomposition: cycle-to-cycle vs. device-to-device. A stated limitation is "one device per condition" (main_alt_codex.tex:816-818). But S9–S12 are four separate devices at the same setpoint. A nested variance-components analysis (cycle-within-device bootstrap vs. across-S9–S12 spread) directly partitions the two and converts an admitted limitation into a result, using only existing data.
+
+B5 — Promote the Schottky permittivity to a model-free process fingerprint with error bars. hrs_schottky_trend.csv gives single-cycle εᵣ (4.7–32) with no uncertainty, yet you claim a ~3× center-point scatter. The classifier already runs per cycle, so bootstrap εᵣ across cycles to get CIs. The strong, novel framing: when the compact-model parameters are non-identifiable, this conduction-mechanism observable is the reliable, model-independent process metric. That flips your "limitation" into a headline.
+
+B6 — Predict an independent observable you never fit. The DC endurance-DOE/ folder contains measured Set-Voltage and Forming-Voltage distributions per condition (e.g. Set Voltage-S10.csv, Forming Voltage-S10.csv). Testing whether the medoid-fitted model predicts the measured Vset distribution of held-out cycles is a far stronger generalization claim than log-I RMSE on the same loops — it's prediction of a quantity outside the training objective. This is the single most convincing thing you could add for "robust + novel," if the data align.
+
+Suggested priority
+A1 + A2 (CI consistency / bound-railing) — without these, Fig. 5/7 are vulnerable.
+B1 + B2 (sloppy-model eigenanalysis → identifiable reparameterization) — your strongest novelty lever, no new data.
+B3 + B4 (real DOE statistics + variance decomposition) — turns two limitations into results.
+B6 (predict measured Vset) — highest-impact if the endurance data cooperate.
+A3, A4, B5 — credibility cleanups that close obvious referee objections.
+Items A1–A4, B1–B5 require no new measurements — only re-analysis of data already in the repo. B6 needs the endurance CSVs cross-referenced to the same devices.
+
+Want me to draft the specific text/methods edits for any of these (e.g., the sloppy-model eigenanalysis subsection, or the DOE/ANOVA paragraph), still without touching the analysis code?
+
+################ Implementation #################
+All implemented, verified, and the documents rebuild. Here's the summary.
+
+What I implemented (A1–A4, B1–B5)
+All of it is pure re-analysis of already-archived fits — no new HSPICE needed. One finding forced a correction to the paper (see B3).
+
+Item	What was done	Key result now in the papers
+A1	Bootstrap point + interval now from the same distribution (median + 2.5/97.5 percentile)	The full-budget optimum fell outside its CI for 7/192 params; reported median is now inside by construction
+A2	Report fraction of bootstrap draws pinned to the prior box	R_s is 100% bound-pinned → its 1–2 decade interval is a box artifact, not data
+A3	Per-condition generalization gap + honest outlier call-out	Median gap +0.011 dec; the +0.040 RESET mean is driven by S1 (+0.310, +45%), now flagged explicitly
+A4	Aggregated profile-likelihood verdicts	56/64 (88%) flat/non-identifiable across S1–S4
+B1/B2	Fisher eigenspectrum + stiff-direction composition (new fig)	Spectra span ~37 orders of magnitude; one stiff direction (coupled current-scale/gap)
+B3	Formal coded response surface + center-point lack-of-fit test (new table)	Only V0_SET is significant (O₂ p=0.027, power p=0.044, R²=0.75) — corrected the old eyeballed V0_RESET claim
+B4	Variance decomposition from replicated center points (new fig)	Cycle-to-cycle dominates device-to-device for every param (ICC<0.2)
+B5	Per-cycle Schottky ε_r with cycle-bootstrap CIs	Medians 5.3–24.7 over 454 cycles, all admissible, model-free fingerprint
+Files changed
+Code modified: 02c_classify_conduction_regimes.py (per-cycle slope/ε_r), 06_run_variability.py (percentile CIs + median + bound-fraction + --reanalyze), 08_paper_alt_figures.py (corrected trends + bootstrap ε_r)
+New: 09_robustness_extensions.py (A3, A4, B1–B4) → results/robustness/
+Docs: Latex_main/main.tex (7 pp), Latex_main/main_alt.tex (9 pp), Latex_Abstract/build_abstract.py (now 10 figures). All rebuild clean, no undefined refs. (Left main_alt_codex.tex untouched — not in your list.)
+How to run the pipeline
+Re-analysis only (no MATLAB/HSPICE — reproduces everything above from existing fits):
+
+
+for c in S1 S2 S3 S4 S5 S6 S7 S8 S9 S10 S11 S12; do \
+  python3 02c_classify_conduction_regimes.py \
+    --rep-csv "$(ls step02_$c/*_representative_curve_FIXED.csv)" \
+    --output-dir step02_$c --ensemble-csv step02_$c/${c}_cycle_ensemble.csv; done
+python3 06_run_variability.py --reanalyze   # corrected CIs / bound-railing
+python3 08_paper_alt_figures.py             # trends, held-out, cycle-bootstrap eps
+python3 09_robustness_extensions.py         # sloppy spectrum, DOE, variance, gaps
+Full pipeline (needs MATLAB + HSPICE on PATH — only if re-fitting, or to complete profile likelihood for S5–S12 / A4):
+
+
+bash run_full_pipeline.sh        # 07 fits+Fisher+profile, 04 summary, 05 ablation, 06 bootstrap
+python3 08_paper_alt_figures.py && python3 09_robustness_extensions.py
+Rebuild documents:
+
+
+cd Latex_main && pdflatex main.tex && pdflatex main.tex; pdflatex main_alt.tex && pdflatex main_alt.tex
+cd ../Latex_Abstract && python3 build_abstract.py
+One thing to note: A4 is only partial — profile-likelihood scans exist for S1–S4 (the 88% figure). Completing all 12 is the one item that genuinely needs new HSPICE runs (bash run_full_pipeline.sh with profile enabled); the papers state this honestly as remaining future work.

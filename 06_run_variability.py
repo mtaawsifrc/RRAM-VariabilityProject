@@ -66,6 +66,12 @@ def main() -> int:
     ap.add_argument("--outroot", default=str(ROOT / "results/variability"))
     ap.add_argument("--bootstrap-n", type=int, default=120)
     ap.add_argument("--with-loco", action="store_true")
+    ap.add_argument("--reanalyze", action="store_true",
+                    help="skip ensemble build + HSPICE fitting; regenerate the "
+                         "CSV/figures from existing per-condition .mat files only")
+    ap.add_argument("--bound-tol", type=float, default=0.01,
+                    help="a bootstrap draw is counted as bound-pinned when it "
+                         "lies within this fraction of the (lb,ub) box edge")
     args = ap.parse_args()
     conds = args.conditions or [f"S{i}" for i in range(1, 13)]
     base = Path(args.base_config)
@@ -84,33 +90,36 @@ def main() -> int:
     collected = {}
     names = None
     for c in conds:
-        rep = glob.glob(str(ROOT / f"step02_{c}/*_representative_curve_FIXED.csv"))
-        st1 = ROOT / f"step01_{c}"
-        if not rep or not st1.is_dir():
-            print(f"[{c}] missing rep curve or step01 dir, skipping"); continue
-        ens = ROOT / f"step02_{c}/{c}_cycle_ensemble.csv"
-        print(f"[{c}] building ensemble ...")
-        if subprocess.call([sys.executable, str(ROOT / "02b_build_cycle_ensemble.py"),
-                            "--step01-dir", str(st1), "--rep-csv", rep[0],
-                            "--output", str(ens)]) != 0:
-            print(f"[{c}] ensemble build failed, skipping"); continue
-        print(f"[{c}] classifying conduction regimes ...")
-        try:
-            regime_map = build_regime_map(rep[0], str(ens))
-        except RuntimeError as e:
-            print(f"[{c}] {e}; fitting without regime map")
-            regime_map = ""
         outdir = outroot / c
-        cond_overrides = dict(overrides)
-        if regime_map:
-            cond_overrides["regime_map_csv"] = regime_map
-        cfg = write_cfg(base, cond_overrides)
-        print(f"[{c}] bootstrap fit (n={args.bootstrap_n}) ...")
-        subprocess.call([
-            sys.executable, str(ROOT / "stanford_fit/python/03_run_stanford_fit.py"),
-            "--input", rep[0], "--ensemble", str(ens), "--config", cfg,
-            "--outdir", str(outdir), "--matlab-bin", args.matlab_bin])
-        os.unlink(cfg)
+        if not args.reanalyze:
+            rep = glob.glob(str(ROOT / f"step02_{c}/*_representative_curve_FIXED.csv"))
+            st1 = ROOT / f"step01_{c}"
+            if not rep or not st1.is_dir():
+                print(f"[{c}] missing rep curve or step01 dir, skipping"); continue
+            ens = ROOT / f"step02_{c}/{c}_cycle_ensemble.csv"
+            print(f"[{c}] building ensemble ...")
+            if subprocess.call([sys.executable, str(ROOT / "02b_build_cycle_ensemble.py"),
+                                "--step01-dir", str(st1), "--rep-csv", rep[0],
+                                "--output", str(ens)]) != 0:
+                print(f"[{c}] ensemble build failed, skipping"); continue
+            print(f"[{c}] classifying conduction regimes ...")
+            try:
+                regime_map = build_regime_map(rep[0], str(ens))
+            except RuntimeError as e:
+                print(f"[{c}] {e}; fitting without regime map")
+                regime_map = ""
+            cond_overrides = dict(overrides)
+            if regime_map:
+                cond_overrides["regime_map_csv"] = regime_map
+            cfg = write_cfg(base, cond_overrides)
+            print(f"[{c}] bootstrap fit (n={args.bootstrap_n}) ...")
+            subprocess.call([
+                sys.executable, str(ROOT / "stanford_fit/python/03_run_stanford_fit.py"),
+                "--input", rep[0], "--ensemble", str(ens), "--config", cfg,
+                "--outdir", str(outdir), "--matlab-bin", args.matlab_bin])
+            os.unlink(cfg)
+        if not (outdir / "validation.mat").is_file():
+            print(f"[{c}] no validation.mat in {outdir}; skipping"); continue
         try:
             val = sio.loadmat(outdir / "validation.mat", squeeze_me=True, struct_as_record=False)["val"]
             ref = sio.loadmat(outdir / "refined.mat", squeeze_me=True, struct_as_record=False)["refined"]
@@ -119,7 +128,10 @@ def main() -> int:
             theta = np.asarray(ref.theta, dtype=float).ravel()
             ci = np.asarray(val.ci95, dtype=float)            # 2 x nP
             tbs = np.asarray(val.theta_bs, dtype=float)        # nB x nP
-            collected[c] = dict(theta=theta, ci=ci, tbs=tbs, active=active)
+            lb = np.asarray(ref.priors.lb, dtype=float).ravel()
+            ub = np.asarray(ref.priors.ub, dtype=float).ravel()
+            collected[c] = dict(theta=theta, ci=ci, tbs=tbs, active=active,
+                                lb=lb, ub=ub)
             nfin = int(np.all(np.isfinite(tbs), axis=1).sum()) if tbs.ndim == 2 else 0
             print(f"[{c}] bootstrap draws used: {nfin}; ci95 finite: {np.isfinite(ci).all()}")
         except Exception as e:
@@ -132,19 +144,48 @@ def main() -> int:
     idx = {n: i for i, n in enumerate(names)}
     cl = sorted(collected, key=lambda s: int(s[1:]))
 
-    # CSV: per condition per active param
-    lines = ["condition,parameter,theta,ci_lo,ci_hi,cv"]
+    # CSV: per condition per active param.
+    # Robustness fix (A1): the reported point and the 95% interval are now both
+    # read from the SAME bootstrap distribution -- theta is the bootstrap median
+    # and (ci_lo,ci_hi) are its 2.5/97.5 percentiles -- so the interval brackets
+    # the plotted estimate by construction.  The full-budget refined optimum is
+    # retained as theta_point for reference, and the percentile interval may not
+    # contain it when the reduced-budget bootstrap optimum is biased.
+    # Robustness fix (A2): frac_at_bound is the fraction of bootstrap draws
+    # pinned within --bound-tol of the (lb,ub) prior box edge; a large value
+    # means the interval width is set by the box rather than by the data.
+    tol = args.bound_tol
+    n_outside = 0
+    lines = ["condition,parameter,theta,theta_point,ci_lo,ci_hi,cv,frac_at_bound"]
     cv_mat = np.full((len(active), len(cl)), np.nan)
     for j, c in enumerate(cl):
         d = collected[c]
         for i, n in enumerate(active):
             p = idx[n]
-            lo, hi = d["ci"][0, p], d["ci"][1, p]
             col = d["tbs"][:, p]; col = col[np.isfinite(col)]
-            cv = (np.std(col) / abs(np.mean(col))) if col.size and np.mean(col) != 0 else np.nan
+            if col.size:
+                med = float(np.median(col))
+                lo, hi = (float(np.percentile(col, 2.5)),
+                          float(np.percentile(col, 97.5)))
+                cv = (np.std(col) / abs(np.mean(col))) if np.mean(col) != 0 else np.nan
+                span = d["ub"][p] - d["lb"][p]
+                if span > 0:
+                    frac = float(np.mean(((col - d["lb"][p]) / span < tol) |
+                                         ((d["ub"][p] - col) / span < tol)))
+                else:
+                    frac = np.nan
+            else:
+                med, lo, hi, cv, frac = (np.nan,) * 5
             cv_mat[i, j] = cv
-            lines.append(f"{c},{n},{d['theta'][p]:.6g},{lo:.6g},{hi:.6g},{cv:.4g}")
+            if np.isfinite(lo) and not (lo <= d["theta"][p] <= hi):
+                n_outside += 1
+            lines.append(f"{c},{n},{med:.6g},{d['theta'][p]:.6g},"
+                         f"{lo:.6g},{hi:.6g},{cv:.4g},{frac:.3g}")
     (outroot / "parameter_cis.csv").write_text("\n".join(lines) + "\n")
+    n_total = len(active) * len(cl)
+    print(f"[A1] full-budget refined optimum lies outside the bootstrap "
+          f"percentile CI for {n_outside}/{n_total} parameter-conditions "
+          f"(reported theta is now the bootstrap median, always inside the CI).")
 
     # CV heatmap (cross-cycle parameter stability)
     fig, ax = plt.subplots(figsize=(max(7, len(cl)), 7))

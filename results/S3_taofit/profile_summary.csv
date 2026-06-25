@@ -1,0 +1,17 @@
+parameter,theta_hat,loss_opt,delta_lo,delta_hi,verdict
+I0,0.0074873827,29.591548,1340.27,0.494643,flat_non_identifiable
+g0,2.1339804e-10,29.591548,15.8006,9.13602,identifiable
+Rs,37.012998,29.591548,0,15.2542,flat_non_identifiable
+V0_set,1.4358809,29.591548,7.76021,-0.127588,flat_non_identifiable
+V0_res,1.4615966,29.591548,24.6187,0.416746,flat_non_identifiable
+gamma0_set,23.774958,29.591548,35.1141,0,flat_non_identifiable
+Ea_set,0.53999542,29.591548,0.154,-0.299862,flat_non_identifiable
+Ea_res,0.30897416,29.591548,0.103315,-1.0437,flat_non_identifiable
+F_min_set,2.5634503e+09,29.591548,1.83123,0.278548,flat_non_identifiable
+F_min_res,2.1099764e+09,29.591548,5.53704,0.0542647,flat_non_identifiable
+Vel0_set,0.74263811,29.591548,0,-0.340589,flat_non_identifiable
+Vel0_res,18.692529,29.591548,-0.295402,0.0897997,flat_non_identifiable
+gap_max_set,1.8371119e-09,29.591548,1.72487,0.582816,flat_non_identifiable
+gap_max_res,1.0685418e-09,29.591548,0.328503,24.4579,flat_non_identifiable
+gap_ini_set,1.3801905e-09,29.591548,4.15458,0.676879,flat_non_identifiable
+gap_ini_res,1.397501e-10,29.591548,0.164838,0.406263,flat_non_identifiable

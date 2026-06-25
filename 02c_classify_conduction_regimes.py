@@ -316,7 +316,11 @@ def cycle_stability(ensemble, args):
                 rows.append(dict(cycle_id=int(cyc), state=state,
                                  mechanism=best["mechanism"] if best
                                  else "unclassified",
-                                 r2=best["r2"] if best else np.nan))
+                                 r2=best["r2"] if best else np.nan,
+                                 slope=best["slope"] if best else np.nan,
+                                 eps_r_dyn=(best["eps_r_dyn"] if best
+                                            else np.nan),
+                                 n_points=best["n_points"] if best else 0))
     per_cycle = pd.DataFrame(rows)
     if per_cycle.empty:
         return per_cycle, pd.DataFrame()

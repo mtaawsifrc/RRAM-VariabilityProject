@@ -47,18 +47,23 @@ flow is applied to twelve sputter-deposited TaO$_x$ conditions spanning
 reproduces the measured DC butterfly curves with mean log-current RMSE of
 0.530 decades for SET and 0.761 decades for RESET.  Across 200 bootstrap
 resamples per condition, all active-parameter intervals are finite and
-nondegenerate, but the median coefficient of variation is 0.448; series
-resistance and velocity prefactors are especially unstable.  Fisher analysis
-identifies only 0--8 of 16 active parameters per condition (mean 2.4), with
-condition numbers of $6.2\times10^{18}$--$1.6\times10^{66}$.  Series
-resistance and branch voltage/field scales are the most recurrently
-constrained coordinates, whereas current/gap decomposition and gap geometry
-remain poorly determined.  Mechanism classification shows Schottky-dominant
-post-RESET high-resistance-state conduction in 92.5--100\% of cycles for all
-twelve conditions, exposing a structural mismatch with the Stanford bulk
-current law.  The resulting deliverable is therefore a behavioral compact-
-model calibration accompanied by explicit fit, mechanism, identifiability,
-and variability evidence.
+nondegenerate, but the median coefficient of variation is 0.448; reporting
+each parameter as its bootstrap median with a percentile interval (so the point
+estimate is bracketed by construction) shows that the series-resistance
+interval is fixed by the prior box, not the data (100\% of draws pinned to an
+edge).  Eigendecomposition of the Fisher matrices makes the sloppiness
+quantitative: the spectra span on average $\sim$37 orders of magnitude with a
+single dominant stiff direction, so only a few effective combinations are
+determined.  A formal face-centered response-surface test with center-point
+lack-of-fit finds that only $V_{0,\mathrm{SET}}$ carries a statistically
+significant deposition dependence (oxygen and power, $R^2=0.75$), and a
+variance decomposition over the replicated center points shows cycle-to-cycle
+variation dominates device-to-device variation for every parameter.  Mechanism
+classification shows Schottky-dominant post-RESET high-resistance-state
+conduction in 92.5--100\% of cycles for all twelve conditions, exposing a
+structural mismatch with the Stanford bulk current law.  The resulting
+deliverable is therefore a behavioral compact-model calibration accompanied by
+explicit fit, mechanism, identifiability, and variability evidence.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -369,7 +374,17 @@ weak: $0.5\le\rho<2$; non-identifiable: $\rho\ge2$)
 a local diagnostic rather than a uniqueness proof: very large condition
 numbers, numerical null directions, and disagreement with cycle-bootstrap
 stability are all treated as evidence against assigning microscopic meaning
-to an individual coordinate.
+to an individual coordinate.  To quantify the sloppiness rather than merely
+assert it, we eigendecompose the active-parameter Fisher matrix per condition:
+the eigenvalue spectrum measures the dynamic range of constraint, and the
+eigenvector of the largest eigenvalue is the stiff (best-determined) parameter
+combination \cite{transtrum2015sloppiness}.
+
+Because the deposition design (Table~\ref{tab:doe}) is a face-centered
+factorial with four replicated center points, deposition dependence of each
+identifiable parameter is tested formally: a coded second-order response
+surface is fit by least squares, coefficient $p$-values are obtained, and the
+center replicates serve as pure error in an $F$ lack-of-fit test.
 
 \subsection{Cycle-to-Cycle Variability}
 \label{sec:boot}
@@ -378,9 +393,17 @@ Cycle-to-cycle uncertainty uses 200 cluster-bootstrap draws over whole measured
 cycles of the selected device: each draw resamples cycles with replacement,
 collapses them to one median curve by branch and point index (preserving
 hysteresis sequence), and refits with a reduced budget ($8+24$ evaluations).
-Percentiles across draws give empirical 95\% confidence intervals that
-reflect cycle-to-cycle variability under the fitting protocol; they make no
-claim about device-to-device or wafer-level populations.
+Each parameter is reported as the bootstrap median with a 2.5/97.5 percentile
+interval, so the point estimate is bracketed by its own interval; the
+full-budget refined optimum, which the reduced-budget bootstrap optima track
+only approximately (outside the interval for 7 of 192 parameter--conditions),
+is kept only as a reference.  For each parameter we also report the fraction of
+bootstrap draws pinned within 1\% of a prior-box edge, flagging intervals whose
+width is set by the box rather than the data.  These intervals reflect
+cycle-to-cycle variability under the fitting protocol and make no claim about
+device-to-device or wafer-level populations; the four replicated center-point
+devices (S9--S12) are used separately to split each parameter's variance into
+cycle-to-cycle and device-to-device components.
 
 \subsection{Ablation Design}
 \label{sec:ablation-design}
@@ -407,10 +430,13 @@ representative S1 device, and Fig.~\ref{fig:mechanism-map} summarizes the
 cycle-level dominant mechanism for all twelve conditions.  The post-SET LRS
 is ohmic-dominant for every condition, with stability from 66.3\% (S2) to
 100\%.  More consequentially, the post-RESET HRS is Schottky-dominant for
-all conditions in 92.5--100\% of cycles.  Its representative-cycle
-Schottky windows imply $\varepsilon_r^{\mathrm{dyn}}=4.72$--33.96 under
-$t_{\mathrm{ox}}=\SI{7}{\nano\meter}$, inside the deliberately broad
-admissibility interval.
+all conditions in 92.5--100\% of cycles.  Classifying the Schottky window of
+every measured cycle and bootstrapping over cycles, the per-condition median
+$\varepsilon_r^{\mathrm{dyn}}$ spans 5.3--24.7 under
+$t_{\mathrm{ox}}=\SI{7}{\nano\meter}$ (454 Schottky cycles in total), every
+value inside the deliberately broad admissibility interval; this makes the
+interface permittivity a cycle-resolved, model-free process observable rather
+than a single-curve estimate.
 
 The pre-SET HRS is Schottky-dominant in ten conditions, with stability from
 60.4\% (S2) to 100\% (S8); S5 and S7 are instead ohmic-dominant at 80\% and
@@ -538,12 +564,32 @@ pseudo-inverse uncertainties on individual $F_{\min}$ entries are therefore
 treated as local numerical results, not as proof of global uniqueness.
 
 The defensible interpretation is that DC butterfly data constrain effective
-branch scales---series resistance, voltage curvature, and switching-field
-combinations---more reliably than the decomposition into $I_0$, $g_0$,
-activation energies, velocity prefactors, and gap geometry.  The bootstrap
-results in Section~\ref{sec:res-variability} independently reinforce this
-conclusion by showing substantial parameter movement under resampling of the
-measured cycles.
+branch scales---voltage curvature and switching-field combinations---more
+reliably than the decomposition into $I_0$, $g_0$, activation energies,
+velocity prefactors, and gap geometry.  Series resistance is the clearest case
+where the \emph{local} Fisher diagnostic and the \emph{global} bootstrap
+diverge: it is the most recurrent locally identifiable coordinate, yet under
+cycle resampling every bootstrap draw rails against a prior-box edge (pinned
+fraction $1.00$), so its apparent constraint is an artifact of the box, not the
+data.  Eigendecomposing the Fisher matrices makes the structure explicit
+(Fig.~\ref{fig:sloppy}): the spectra span on average $\sim$37 orders of
+magnitude (11.5--69.3 across conditions), with only 5--10 of the 16 active
+directions within six decades of the stiffest, and a single stiff direction
+dominated by the coupled current-scale/gap coordinates.  This is the eigenbasis
+statement of why only a few effective combinations---not the individual
+microscopic parameters---are recoverable, which the cycle bootstrap of
+Section~\ref{sec:res-variability} independently confirms.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{results/robustness/sloppy_spectrum.pdf}
+\caption{Sloppiness of the Stanford parameterization.  Left: normalized Fisher
+eigenvalue spectra for all twelve conditions, falling over tens of decades.
+Right: mean participation of each active parameter in the stiffest
+(best-determined) eigen-direction---a coupled current-scale/gap combination,
+not any individual microscopic parameter.}
+\label{fig:sloppy}
+\end{figure}
 
 \begin{figure}[!t]
 \centering
@@ -626,6 +672,53 @@ voltage scales are comparatively repeatable.}
 \label{fig:param-cv}
 \end{figure}
 
+The deposition design (Table~\ref{tab:doe}) lets us ask which of these
+repeatable coordinates actually moves with process.  Fitting a coded
+second-order response surface with a center-point lack-of-fit test
+(Table~\ref{tab:doe-rsm}), only $V_{0,\mathrm{SET}}$ shows a statistically
+significant deposition dependence---rising with oxygen ($p=0.027$) and falling
+with power ($p=0.044$), $R^2=0.75$, no significant lack-of-fit.
+$V_{0,\mathrm{RESET}}$ does not reach significance, and $\log_{10}R_s$ carries
+no significant term ($R^2=0.24$), consistent with its box-limited interval.
+Thus, of the full Stanford parameter table, exactly one coordinate is currently
+admissible as a process response.
+
+\begin{table}[!t]
+\centering
+\caption{Coded response-surface fit of the identifiable parameters versus
+oxygen and power.  $p$-values are for the linear coefficients; lack-of-fit
+(LoF) uses the four center-point replicates as pure error.}
+\label{tab:doe-rsm}
+\footnotesize
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+Param. & $\beta_{\mathrm{O}_2}$ & $p_{\mathrm{O}_2}$ & $\beta_{P}$ & $p_{P}$ &
+$R^2$ & $p_{\mathrm{LoF}}$\\
+\midrule
+$V_{0,\mathrm{SET}}$  & $+0.213$ & $0.027$ & $-0.185$ & $0.044$ & 0.75 & 0.12\\
+$V_{0,\mathrm{RESET}}$ & $+0.224$ & $0.052$ & $-0.166$ & $0.124$ & 0.61 & 0.08\\
+$\log_{10}R_s$ & $-0.179$ & $0.443$ & $+0.151$ & $0.514$ & 0.24 & 0.33\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Finally, the four replicated center-point devices (S9--S12) separate
+cycle-to-cycle from device-to-device variability (Fig.~\ref{fig:varcomp}).  For
+every parameter the cycle-to-cycle coefficient of variation exceeds the
+device-to-device value and the intraclass device fraction is below 0.2 (e.g.\
+0.04 for $V_{0,\mathrm{SET}}$, 0.06 for $R_s$): the cycle bootstrap captures the
+dominant uncertainty, and the spread among nominally identical devices is
+mostly cycling rather than fabrication.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{results/robustness/variance_components.pdf}
+\caption{Cycle-to-cycle versus device-to-device coefficient of variation for
+representative parameters, from the four replicated center-point devices
+(S9--S12).  Cycle-to-cycle spread dominates for every parameter.}
+\label{fig:varcomp}
+\end{figure}
+
 % =========================================================================
 \section{Discussion}
 \label{sec:discussion}
@@ -642,9 +735,11 @@ from DC sweeps alone; constraining kinetics requires pulsed or
 sweep-rate-resolved data, which break the quasi-static degeneracy between
 kinetic prefactors and the time axis.  (iii)~When comparing parameters
 across deposition conditions (the response-surface use case of
-Table~\ref{tab:doe}), compare identifiable combinations---LRS resistance
-scale, switching thresholds---rather than raw parameter columns, since the
-latter mix data- and prior-driven coordinates.
+Table~\ref{tab:doe}), test the identifiable coordinates formally rather than
+reading trends off a plot: here only $V_{0,\mathrm{SET}}$ survives a
+center-point lack-of-fit test as a process-dependent response
+(Table~\ref{tab:doe-rsm}), while raw columns such as $R_s$ mix data- and
+prior-driven information and must not be regressed against deposition.
 
 \subsection{Model Adequacy for TaO$_x$}
 
@@ -665,15 +760,16 @@ mismatch visible in unweighted validation.
 \subsection{Limitations}
 
 The transient replay is quasi-static, so kinetic parameters absorb the
-effective time scale.  Fisher analysis is local, and the present result
-archive does not contain completed profile-likelihood scans; identifiability
-claims are therefore limited to the combined Fisher and bootstrap evidence.
-The Fisher audit and full regime-conditioned bootstrap were also archived as
-separate runs, so a future release should repeat both diagnostics at one
-common optimum.  Bootstrap intervals are cycle-level for one selected device
-per condition and do not constitute device-to-device or wafer-level
-statistics.  Finally, the reset-side $\gamma_0$ is structurally overridden
-under negative bias in the released Verilog-A, so it is retained for model
+effective time scale.  Fisher analysis is local; it is now reported together
+with its eigenspectrum and with profile-likelihood scans completed for S1--S4
+(88\% flat/non-identifiable), but a future release should complete profile
+likelihood at one common optimum for all twelve conditions.  Bootstrap
+intervals are cycle-level for one selected device per non-center condition; the
+variance decomposition over the replicated center points (S9--S12) shows
+cycle-to-cycle variation dominates device-to-device variation, but full
+device-to-device and wafer-level statistics would require a multi-device
+extension.  Finally, the reset-side $\gamma_0$ is structurally overridden under
+negative bias in the released Verilog-A, so it is retained for model
 compatibility but not physically interpreted.
 
 % =========================================================================
