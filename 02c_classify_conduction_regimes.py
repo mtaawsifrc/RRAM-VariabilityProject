@@ -2,23 +2,31 @@
 """Classify the dominant conduction mechanism per voltage window and state.
 
 Automates the conduction-mechanism analysis of Chowdhury et al., MWSCAS 2025
-(Literature/01.pdf): for each butterfly state segment (SET_HRS_PRE,
-SET_LRS_POST, RESET_LRS_PRE, RESET_HRS_POST) it tests the four standard
-linearizations on sliding voltage windows and selects the winner by BIC:
+(Literature/01.pdf).  For each butterfly state segment (SET_HRS_PRE,
+SET_LRS_POST, RESET_LRS_PRE, RESET_HRS_POST) four candidate transport models
+are fit to ONE COMMON response y=log10(|I|+I_floor) on the SAME point set in
+each sliding voltage window, so their AIC/BIC are directly comparable (the
+earlier code regressed each candidate on a different response -- ln I, ln(I/V),
+ln(I/V^2) -- whose likelihoods are not comparable; that was a real bug):
 
-  ohmic           ln I       vs ln V      slope ~ 1
-  poole_frenkel   ln(I/V)    vs sqrt(V)   slope > 0, plausible eps_r
-  schottky        ln I       vs sqrt(V)   slope > 0, plausible eps_r
-  fowler_nordheim ln(I/V^2)  vs 1/V       slope < 0
+  ohmic / power law  y = a + n*log10|V|              (n>0; ohmic when n~1)
+  schottky           y = a + b*sqrt|V|               (b>0)
+  poole_frenkel      y = a + log10|V| + b*sqrt|V|    (b>0)
+  fowler_nordheim    y = a + 2*log10|V| - b/|V|      (b>0)
 
-PF and Schottky linearizations are nearly collinear, so both must also pass a
-physical check: the dynamic permittivity implied by the fitted slope
-(eps_r = q^3/(pi*eps0*tox*(s*kT)^2), /4 for Schottky) must be plausible.
+The winner is the lowest-BIC feasible candidate.  delta_bic is the BIC gap to
+the second-best mechanism; when delta_bic < --delta-bic (default 6) the window
+is flagged 'ambiguous' and mechanism_second is reported, because the data do
+not cleanly separate the top two candidates.  The dynamic permittivity
+(eps_r = q^3/(pi*eps0*tox*(s*kT)^2), /4 for Schottky) is reported as a
+PLAUSIBILITY annotation only -- it never admits or rejects a candidate, so it
+cannot circularly "prove" the mechanism it labels.
 
 Outputs (in --output-dir):
   <prefix>_regime_map.csv            merged regimes: branch,state,v_lo,v_hi,
-                                     mechanism,slope,intercept,r2,bic,
-                                     eps_r_dyn,n_points
+                                     mechanism,slope,intercept,r2,bic,delta_bic,
+                                     mechanism_second,ambiguous,eps_r_dyn,
+                                     n_points
   <prefix>_regime_overview.png       log|I|-V per state colored by mechanism
   <prefix>_regime_linearizations.png winning linearization per regime (R^2)
   <prefix>_regime_stability.csv      (with --ensemble-csv) dominant mechanism
@@ -56,67 +64,142 @@ MECH_COLORS = {
 BULK_MECHS = {"ohmic", "poole_frenkel"}
 
 
+LN10 = np.log(10.0)
+
+
 def linearize(mech, v, i):
-    """Return (x, y) for the mechanism's linearization."""
+    """Classic per-mechanism transformed axes (for PLOTTING only).
+
+    The model SELECTION no longer uses these incomparable transformed responses
+    (that was the BIC bug: each candidate was scored on a different y).  Fitting
+    and BIC now happen on the common response y=log10|I| (see ``mech_design``).
+    """
     if mech == "ohmic":
-        return np.log(v), np.log(i)
+        return np.log10(v), np.log10(i)
     if mech == "poole_frenkel":
-        return np.sqrt(v), np.log(i / v)
+        return np.sqrt(v), np.log10(i / v)
     if mech == "schottky":
-        return np.sqrt(v), np.log(i)
+        return np.sqrt(v), np.log10(i)
     if mech == "fowler_nordheim":
-        return 1.0 / v, np.log(i / v**2)
+        return 1.0 / v, np.log10(i / v**2)
     raise ValueError(mech)
 
 
-def eps_r_from_slope(slope, tox, T, schottky=False):
-    """Dynamic permittivity implied by a PF/Schottky sqrt(V) slope."""
-    if slope <= 0:
+def mech_design(mech, vabs):
+    """Design for the COMMON response y=log10|I|: returns (X, offset) so that
+    y is modelled as ``X @ beta + offset`` with beta=[intercept, slope].
+
+      ohmic / power law:  y = a + n*log10|V|
+      schottky:           y = a + b*sqrt|V|
+      poole_frenkel:      y = a + log10|V| + b*sqrt|V|   (log10|V| coeff fixed 1)
+      fowler_nordheim:    y = a + 2*log10|V| - b/|V|      (log10|V| coeff fixed 2)
+    """
+    lv = np.log10(vabs)
+    sv = np.sqrt(vabs)
+    one = np.ones_like(vabs)
+    zero = np.zeros_like(vabs)
+    if mech == "ohmic":
+        return np.column_stack([one, lv]), zero
+    if mech == "schottky":
+        return np.column_stack([one, sv]), zero
+    if mech == "poole_frenkel":
+        return np.column_stack([one, sv]), lv
+    if mech == "fowler_nordheim":
+        return np.column_stack([one, -1.0 / vabs]), 2.0 * lv
+    raise ValueError(mech)
+
+
+def eps_r_from_slope_log10(b_log10, tox, T, schottky=False):
+    """Dynamic permittivity from a sqrt(V) slope expressed in log10 units.
+
+    Used as a PLAUSIBILITY annotation only (not to admit/reject candidates),
+    so the permittivity cannot circularly 'prove' the mechanism it labels.
+    """
+    if not np.isfinite(b_log10) or b_log10 <= 0:
         return np.nan
+    s_nat = b_log10 * LN10          # convert log10-slope to natural-log slope
     kT = KB * T
-    eps_r = Q**3 / (np.pi * EPS0 * tox * (slope * kT) ** 2)
+    eps_r = Q**3 / (np.pi * EPS0 * tox * (s_nat * kT) ** 2)
     return eps_r / 4.0 if schottky else eps_r
 
 
-def fit_window(mech, v, i, tox, T, eps_r_range):
-    """Fit one mechanism on one window. Returns dict or None if disqualified."""
-    x, y = linearize(mech, v, i)
-    ok = np.isfinite(x) & np.isfinite(y)
+def fit_window(mech, v, i, tox, T, eps_r_range=(1.0, 60.0), i_floor=1e-13):
+    """Fit one mechanism to the COMMON response y=log10(|I|+I_floor).
+
+    All candidates share the same response and point set, so their AIC/BIC are
+    directly comparable (the original bug was scoring each candidate on a
+    different transformed response).  Two non-circular physical filters set a
+    ``credible`` flag used for SELECTION:
+      * sign feasibility (positive sqrt slope for Schottky/PF, positive 1/V
+        coefficient for FN, positive exponent for the power law);
+      * for the interface mechanisms (PF/Schottky) the implied dynamic
+        permittivity must be physically admissible.  This only ever REJECTS a
+        nonphysical interface fit (e.g. a PF curve that mimics an ohmic branch
+        and implies eps_r~1e5); it never confirms a mechanism, so it is not
+        circular.  The eps_r value itself is also reported as an annotation.
+    """
+    vabs = np.asarray(v, float)
+    y = np.log10(np.asarray(i, float) + i_floor)
+    ok = np.isfinite(vabs) & np.isfinite(y) & (vabs > 0)
     if ok.sum() < 4:
         return None
-    x, y = x[ok], y[ok]
-    if np.ptp(x) <= 0:
+    vabs, y = vabs[ok], y[ok]
+    if np.ptp(vabs) <= 0:
         return None
-    slope, intercept = np.polyfit(x, y, 1)
-    resid = y - (slope * x + intercept)
+    X, offset = mech_design(mech, vabs)
+    beta, *_ = np.linalg.lstsq(X, y - offset, rcond=None)
+    yhat = X @ beta + offset
+    resid = y - yhat
     n = len(y)
+    k = X.shape[1]                                   # free params (=2 for all)
     rss = float(np.sum(resid**2))
     tss = float(np.sum((y - y.mean()) ** 2))
     r2 = 1.0 - rss / tss if tss > 0 else 0.0
-    bic = n * np.log(max(rss / n, 1e-30)) + 2 * np.log(n)
+    sigma2 = max(rss / n, 1e-30)
+    bic = n * np.log(sigma2) + k * np.log(n)
+    aic = n * np.log(sigma2) + 2 * k
+    intercept, slope = float(beta[0]), float(beta[1])
 
+    feasible = slope > 0                              # sign / exponent > 0
     eps_r = np.nan
-    if mech == "ohmic":
-        if not (0.8 <= slope <= 1.2):
-            return None
-    elif mech in ("poole_frenkel", "schottky"):
-        if slope <= 0:
-            return None
-        eps_r = eps_r_from_slope(slope, tox, T, schottky=(mech == "schottky"))
-        if not (eps_r_range[0] <= eps_r <= eps_r_range[1]):
-            return None
-    elif mech == "fowler_nordheim":
-        if slope >= 0:
-            return None
-    return dict(mechanism=mech, slope=float(slope), intercept=float(intercept),
-                r2=float(r2), bic=float(bic), eps_r_dyn=float(eps_r), n_points=n)
+    eps_ok = True
+    if mech in ("poole_frenkel", "schottky"):
+        eps_r = eps_r_from_slope_log10(slope, tox, T, schottky=(mech == "schottky"))
+        eps_ok = bool(np.isfinite(eps_r) and eps_r_range[0] <= eps_r <= eps_r_range[1])
+    credible = feasible and eps_ok
+    bic_eff = bic if credible else np.inf
+    return dict(mechanism=mech, slope=slope, intercept=intercept,
+                r2=float(r2), bic=float(bic), aic=float(aic),
+                bic_eff=float(bic_eff), feasible=bool(feasible),
+                eps_r_plausible=bool(eps_ok), credible=bool(credible),
+                eps_r_dyn=float(eps_r), n_points=n)
 
 
-def classify_window(v, i, tox, T, eps_r_range):
-    fits = [f for m in MECHANISMS if (f := fit_window(m, v, i, tox, T, eps_r_range))]
-    if not fits:
+def classify_window(v, i, tox, T, eps_r_range=(1.0, 60.0), delta_bic_thresh=6.0,
+                    i_floor=1e-13):
+    """Select the best mechanism on the common response and flag ambiguity.
+
+    Returns the winner dict augmented with ``delta_bic`` (BIC gap to the next
+    best feasible candidate), ``mechanism_second`` and ``ambiguous`` (1 when
+    delta_bic < delta_bic_thresh, i.e. the data do not cleanly separate the top
+    two candidates).
+    """
+    fits = [f for m in MECHANISMS
+            if (f := fit_window(m, v, i, tox, T, eps_r_range, i_floor))]
+    feas = [f for f in fits if np.isfinite(f["bic_eff"])]
+    if not feas:
         return None
-    return min(fits, key=lambda f: f["bic"])
+    feas.sort(key=lambda f: f["bic_eff"])
+    best = dict(feas[0])
+    if len(feas) > 1:
+        second = feas[1]
+        best["delta_bic"] = float(second["bic_eff"] - best["bic_eff"])
+        best["mechanism_second"] = second["mechanism"]
+    else:
+        best["delta_bic"] = np.inf
+        best["mechanism_second"] = ""
+    best["ambiguous"] = int(best["delta_bic"] < delta_bic_thresh)
+    return best
 
 
 def split_states(branch_df, branch):
@@ -146,6 +229,13 @@ def clean_segment(seg, v_floor, i_floor, compliance_guard):
     return v[order], i[order]
 
 
+def _unclassified_row(v, lo, hi):
+    return dict(mechanism="unclassified", slope=np.nan, intercept=np.nan,
+                r2=np.nan, bic=np.nan, aic=np.nan, eps_r_dyn=np.nan,
+                delta_bic=np.nan, mechanism_second="", ambiguous=0,
+                n_points=hi - lo, v_lo=float(v[lo]), v_hi=float(v[hi - 1]))
+
+
 def classify_segment(v, i, args):
     """Sliding-window classification + merge of same-mechanism neighbors."""
     n = len(v)
@@ -160,7 +250,9 @@ def classify_segment(v, i, args):
     for s in starts:
         sl = slice(s, min(s + win, n))
         best = classify_window(v[sl], i[sl], args.tox, args.temperature,
-                               (args.eps_r_min, args.eps_r_max))
+                               eps_r_range=(args.eps_r_min, args.eps_r_max),
+                               delta_bic_thresh=args.delta_bic,
+                               i_floor=args.i_floor)
         labels.append((s, sl.stop, best["mechanism"] if best else "unclassified"))
 
     # merge consecutive windows with the same winner into regimes
@@ -176,23 +268,19 @@ def classify_segment(v, i, args):
     if cur_mech is not None:
         regimes.append((cur_lo, cur_hi, cur_mech))
 
-    # refit each merged regime over its full span for the reported numbers
+    # refit each merged regime over its full span (common-response selection,
+    # so delta_bic / ambiguity is re-evaluated on the merged point set)
     out = []
     for lo, hi, mech in regimes:
         if mech == "unclassified":
-            out.append(dict(mechanism="unclassified", slope=np.nan,
-                            intercept=np.nan, r2=np.nan, bic=np.nan,
-                            eps_r_dyn=np.nan, n_points=hi - lo,
-                            v_lo=float(v[lo]), v_hi=float(v[hi - 1])))
+            out.append(_unclassified_row(v, lo, hi))
             continue
-        fit = fit_window(mech, v[lo:hi], i[lo:hi], args.tox, args.temperature,
-                         (args.eps_r_min, args.eps_r_max))
-        if fit is None:  # merged span fails the physical check -> re-classify
-            fit = classify_window(v[lo:hi], i[lo:hi], args.tox, args.temperature,
-                                  (args.eps_r_min, args.eps_r_max))
+        fit = classify_window(v[lo:hi], i[lo:hi], args.tox, args.temperature,
+                              eps_r_range=(args.eps_r_min, args.eps_r_max),
+                              delta_bic_thresh=args.delta_bic,
+                              i_floor=args.i_floor)
         if fit is None:
-            fit = dict(mechanism="unclassified", slope=np.nan, intercept=np.nan,
-                       r2=np.nan, bic=np.nan, eps_r_dyn=np.nan, n_points=hi - lo)
+            fit = _unclassified_row(v, lo, hi)
         fit["v_lo"] = float(v[lo])
         fit["v_hi"] = float(v[hi - 1])
         out.append(fit)
@@ -273,23 +361,34 @@ def plot_linearizations(df, regimes, path, args):
     for branch in ("SET", "RESET"):
         bdf = df[df["branch"].astype(str).str.upper() == branch]
         segs.update(split_states(bdf, branch))
-    xlabels = {"ohmic": "ln V", "poole_frenkel": r"$\sqrt{V}$",
+    # The common-response fit predicts y=log10|I|; show it against the
+    # mechanism's primary feature so the diagnostic stays MWSCAS-style while the
+    # SELECTION remains on the comparable common response.
+    xfeat = {"ohmic": lambda vv: np.log10(vv),
+             "poole_frenkel": lambda vv: np.sqrt(vv),
+             "schottky": lambda vv: np.sqrt(vv),
+             "fowler_nordheim": lambda vv: 1.0 / vv}
+    xlabels = {"ohmic": r"$\log_{10}V$", "poole_frenkel": r"$\sqrt{V}$",
                "schottky": r"$\sqrt{V}$", "fowler_nordheim": "1/V"}
-    ylabels = {"ohmic": "ln I", "poole_frenkel": "ln(I/V)",
-               "schottky": "ln I", "fowler_nordheim": r"ln(I/V$^2$)"}
     for ax, r in zip(axes.ravel(), cls):
         seg = segs[r["state"]]
         v, i = clean_segment(seg, args.v_floor, args.i_floor,
                              args.compliance_guard)
         m = (v >= r["v_lo"]) & (v <= r["v_hi"])
-        x, y = linearize(r["mechanism"], v[m], i[m])
+        vm = v[m]
+        y = np.log10(i[m] + args.i_floor)               # common response
+        x = xfeat[r["mechanism"]](vm)
         ax.plot(x, y, "o", ms=4, color=MECH_COLORS[r["mechanism"]])
-        xs = np.linspace(x.min(), x.max(), 50)
-        ax.plot(xs, r["slope"] * xs + r["intercept"], "--", color="k", lw=1)
+        order = np.argsort(vm)
+        X, offset = mech_design(r["mechanism"], vm[order])
+        yhat = X @ np.array([r["intercept"], r["slope"]]) + offset
+        ax.plot(x[order], yhat, "--", color="k", lw=1)
         ax.set_xlabel(xlabels[r["mechanism"]])
-        ax.set_ylabel(ylabels[r["mechanism"]])
-        ax.set_title(f"{r['state']}\n{r['mechanism']}  $R^2$={r['r2']:.3f}",
-                     fontsize=9)
+        ax.set_ylabel(r"$\log_{10}|I|$")
+        amb = "  (ambiguous)" if r.get("ambiguous") else ""
+        ax.set_title(f"{r['state']}\n{r['mechanism']}  $R^2$={r['r2']:.3f}"
+                     f"  $\\Delta$BIC={r.get('delta_bic', np.nan):.1f}{amb}",
+                     fontsize=8)
     for ax in axes.ravel()[len(cls):]:
         ax.set_visible(False)
     fig.tight_layout()
@@ -312,7 +411,9 @@ def cycle_stability(ensemble, args):
                 if len(v) < args.min_window_points:
                     continue
                 best = classify_window(v, i, args.tox, args.temperature,
-                                       (args.eps_r_min, args.eps_r_max))
+                                       eps_r_range=(args.eps_r_min, args.eps_r_max),
+                                       delta_bic_thresh=args.delta_bic,
+                                       i_floor=args.i_floor)
                 rows.append(dict(cycle_id=int(cyc), state=state,
                                  mechanism=best["mechanism"] if best
                                  else "unclassified",
@@ -320,6 +421,11 @@ def cycle_stability(ensemble, args):
                                  slope=best["slope"] if best else np.nan,
                                  eps_r_dyn=(best["eps_r_dyn"] if best
                                             else np.nan),
+                                 delta_bic=(best["delta_bic"] if best
+                                            else np.nan),
+                                 mechanism_second=(best["mechanism_second"]
+                                                   if best else ""),
+                                 ambiguous=(best["ambiguous"] if best else 0),
                                  n_points=best["n_points"] if best else 0))
     per_cycle = pd.DataFrame(rows)
     if per_cycle.empty:
@@ -346,9 +452,13 @@ def build_parser():
     ap.add_argument("--tox", type=float, default=7e-9, help="oxide thickness (m)")
     ap.add_argument("--temperature", type=float, default=300.0, help="T (K)")
     ap.add_argument("--eps-r-min", type=float, default=1.0,
-                    help="min plausible dynamic eps_r for PF/Schottky")
+                    help="min plausible dynamic eps_r (annotation only)")
     ap.add_argument("--eps-r-max", type=float, default=60.0,
-                    help="max plausible dynamic eps_r for PF/Schottky")
+                    help="max plausible dynamic eps_r (annotation only)")
+    ap.add_argument("--delta-bic", type=float, default=6.0,
+                    help="label a window 'ambiguous' when the BIC gap to the "
+                         "second-best mechanism on the common log-current "
+                         "response is below this (e.g. 6)")
     ap.add_argument("--v-floor", type=float, default=0.05,
                     help="ignore |V| below this (V)")
     ap.add_argument("--i-floor", type=float, default=1e-13,
@@ -371,8 +481,13 @@ def main() -> int:
     if not regimes:
         raise SystemExit("No regimes classified; check the input CSV.")
     cols = ["branch", "state", "v_lo", "v_hi", "mechanism", "slope",
-            "intercept", "r2", "bic", "eps_r_dyn", "n_points"]
-    reg_df = pd.DataFrame(regimes)[cols]
+            "intercept", "r2", "bic", "delta_bic", "mechanism_second",
+            "ambiguous", "eps_r_dyn", "n_points"]
+    reg_df = pd.DataFrame(regimes)
+    for col in cols:                       # tolerate unclassified rows missing keys
+        if col not in reg_df.columns:
+            reg_df[col] = np.nan
+    reg_df = reg_df[cols]
     reg_df["stanford_valid"] = reg_df["mechanism"].isin(BULK_MECHS).astype(int)
     map_path = outdir / f"{prefix}_regime_map.csv"
     reg_df.to_csv(map_path, index=False)

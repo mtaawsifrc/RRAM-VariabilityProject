@@ -1,0 +1,12 @@
+metric,value,detail
+unseen_SET_mean_median,0.5797,
+samedevice_SET_mean_median,0.5416,
+gap_SET_mean,0.0381,
+unseen_SET_total_cycles,2180.0,
+unseen_RESET_mean_median,0.8611,
+samedevice_RESET_mean_median,0.8004,
+gap_RESET_mean,0.0607,
+unseen_RESET_total_cycles,2180.0,
+no_device_in_multiple_splits,1.0,max rows per device = 1
+fitted_device_in_train_only,1.0,0 fitted-device rows outside train
+each_condition_has_unseen_test_devices,1.0,S1:11 S2:9 S3:21 S4:5 S5:9 S6:8 S7:5 S8:10 S9:9 S10:3 S11:8 S12:10

@@ -45,29 +45,64 @@ function fish = stage2_identifiability(priors, setB, resetB, cfg, theta0_in)
         end
     end
 
+    % Sensitivities S_ij = d log10|I_i| / d log(theta_j) are ALREADY in
+    % log-parameter coordinates (the finite-difference denominator above is
+    % log(tp)-log(tm)).  Hence the Fisher information is taken directly in
+    % z = log(theta) coordinates, F = Sw' * Sw with Sw = S / sigma_logI, and
+    % sigma_logtheta = sqrt(diag(pinv(F))) IS the (relative / multiplicative)
+    % parameter uncertainty.  Do NOT divide by theta again -- that was the
+    % earlier dimensional error that produced spurious "rel_sigma" values.
     Sw = S ./ sigma_logI;
     F = Sw' * Sw;
-    [U, Lam] = eig((F + F') / 2);
-    lam = real(diag(Lam));
-    [lam, idx] = sort(lam, 'descend');
-    U = U(:, idx);
+
+    % SVD-based spectrum / pseudo-inverse / numerical rank.  The weighted
+    % sensitivity Sw is the natural object: its singular values sv are the
+    % square roots of the Fisher eigenvalues, and small sv mark sloppy
+    % directions that carry essentially no information at double precision.
+    [~, Ssv, V] = svd(Sw, 'econ');
+    sv = diag(Ssv);
+    sv = sv(:);
+    if isempty(sv); sv = 0; end
+    lam = sv.^2;                                   % Fisher eigenvalues (desc)
+    U = V;                                          % eigenvectors of F
     ratio = lam ./ max(max(lam), realmin);
-    eff_sigma = sqrt(max(diag(pinv(F)), 0))';
-    rel_sigma = eff_sigma ./ max(abs(theta0), realmin);
-    % pinv zeroes null-space directions, so a parameter with (near-)zero
-    % weighted sensitivity gets eff_sigma = 0 and would classify as
-    % "identifiable" when the data carry no information about it at all.
-    % Flag such directions as unbounded instead.
+    % Numerical rank: singular values above a relative tolerance.  Anything
+    % below ~1e-8 of the top singular value (1e-16 in eigenvalue terms) is
+    % numerical noise, not a measurable direction -- so we report a rank, not
+    % an exact "orders of magnitude" span.
+    sv_tol = max(sv) * 1e-8;
+    num_rank = sum(sv > sv_tol);
+    % Cramer-Rao bound in log coordinates via the truncated pseudo-inverse.
+    keep = sv > sv_tol;
+    if any(keep)
+        Cov_z = V(:, keep) * diag(1 ./ lam(keep)) * V(:, keep)';
+    else
+        Cov_z = zeros(nP);
+    end
+    sigma_logtheta = sqrt(max(diag(Cov_z), 0))';   % relative uncertainty
+    eff_sigma = sigma_logtheta;                     % kept for back-compat
+    rel_sigma = sigma_logtheta;                     % already relative; NO /theta
+    % Approximate 95% multiplicative CI factor: theta * [1/f, f], f = exp(1.96 s)
+    ci95_factor = exp(1.96 * sigma_logtheta);
+    % Directions with (near-)zero weighted sensitivity carry no information;
+    % the truncated pseudo-inverse leaves their variance at zero, which would
+    % otherwise masquerade as "identifiable".  Flag them as unbounded.
     col_norm = sqrt(sum(Sw.^2, 1));
-    no_info = (col_norm <= max(1e-12, 1e-9 * max(col_norm))) | (eff_sigma <= 0);
+    no_info = (col_norm <= max(1e-12, 1e-9 * max(col_norm))) | (rel_sigma <= 0);
     rel_sigma(no_info) = Inf;
+    ci95_factor(no_info) = Inf;
     well_idx = find(rel_sigma < 0.5);
     nonid_idx = setdiff(1:nP, well_idx);
 
     fish = struct('F', F, 'eigvals', lam, 'eigvecs', U, 'ratio', ratio, ...
+        'sing_vals', sv, 'num_rank', num_rank, 'sv_tol', sv_tol, ...
         'well_idx', well_idx, 'nonid_idx', nonid_idx, 'eff_sigma', eff_sigma, ...
-        'rel_sigma', rel_sigma, 'names', {priors.names}, 'theta0', theta0, ...
+        'rel_sigma', rel_sigma, 'sigma_logtheta', sigma_logtheta, ...
+        'ci95_factor', ci95_factor, 'names', {priors.names}, 'theta0', theta0, ...
         'class', {classify_rel_sigma(rel_sigma)});
+    fprintf(['[stage2] Fisher numerical rank %d/%d (sv>%.1e*svmax); ', ...
+        'report rank deficiency, not an exact eigenvalue span.\n'], ...
+        num_rank, nP, 1e-8);
 end
 
 function cls = classify_rel_sigma(rel_sigma)
@@ -97,10 +132,12 @@ function fish = empty_fisher(priors)
     n = numel(priors.mu);
     names = priors.names;
     active = find(ismember(names, {'I0', 'g0', 'V0', 'gamma0'}));
+    rel = priors.sigma(:)' ./ max(abs(priors.mu(:)'), realmin);
     fish = struct('F', zeros(n), 'eigvals', zeros(n, 1), 'eigvecs', eye(n), ...
-        'ratio', zeros(n, 1), 'well_idx', active, 'nonid_idx', setdiff(1:n, active), ...
-        'eff_sigma', priors.sigma(:)', 'rel_sigma', priors.sigma(:)' ./ max(abs(priors.mu(:)'), realmin), ...
-        'names', {priors.names}, 'theta0', priors.mu, ...
+        'ratio', zeros(n, 1), 'sing_vals', zeros(n, 1), 'num_rank', 0, ...
+        'sv_tol', NaN, 'well_idx', active, 'nonid_idx', setdiff(1:n, active), ...
+        'eff_sigma', priors.sigma(:)', 'rel_sigma', rel, 'sigma_logtheta', rel, ...
+        'ci95_factor', exp(1.96 * rel), 'names', {priors.names}, 'theta0', priors.mu, ...
         'class', {repmat({'not_evaluated'}, 1, n)});
 end
 

@@ -20,8 +20,8 @@
 \citation{guan2012spice,jiang2016verification}
 \citation{snoek2012practical,shahriari2016}
 \newlabel{eq:ohmic}{{2}{3}}
-\newlabel{eq:pf}{{3}{3}}
-\newlabel{eq:schottky}{{4}{3}}
+\newlabel{eq:schottky}{{3}{3}}
+\newlabel{eq:pf}{{4}{3}}
 \newlabel{eq:fn}{{5}{3}}
 \newlabel{eq:eps-dyn}{{6}{3}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-C}}Compact Model and HSPICE Forward Map}{3}{}\protected@file@percent }
@@ -33,58 +33,62 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-E}}Mechanism-Aware Objective}{3}{}\protected@file@percent }
 \newlabel{sec:loss}{{\mbox  {III-E}}{3}}
 \newlabel{eq:loss}{{9}{3}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-F}}Global Search and Local Refinement}{3}{}\protected@file@percent }
-\newlabel{sec:opt}{{\mbox  {III-F}}{3}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-G}}Operational Identifiability and Generalization}{3}{}\protected@file@percent }
-\newlabel{sec:ident}{{\mbox  {III-G}}{3}}
 \citation{raue2009,transtrum2015sloppiness}
 \citation{efron1994bootstrap}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-F}}Global Search and Local Refinement}{4}{}\protected@file@percent }
+\newlabel{sec:opt}{{\mbox  {III-F}}{4}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-G}}Operational Identifiability and Generalization}{4}{}\protected@file@percent }
+\newlabel{sec:ident}{{\mbox  {III-G}}{4}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-H}}Cycle-to-Cycle Variability}{4}{}\protected@file@percent }
 \newlabel{sec:boot}{{\mbox  {III-H}}{4}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-I}}Ablation Design}{4}{}\protected@file@percent }
 \newlabel{sec:ablation-design}{{\mbox  {III-I}}{4}}
 \@writefile{toc}{\contentsline {section}{\numberline {IV}Results}{4}{}\protected@file@percent }
 \newlabel{sec:results}{{IV}{4}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}Conduction Regimes: Ohmic LRS, Schottky-Limited HRS}{4}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}Conduction Regimes: Ohmic LRS, Barrier-Limited HRS}{4}{}\protected@file@percent }
 \newlabel{sec:res-regimes}{{\mbox  {IV-A}}{4}}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Conduction-regime classification of the four resistance-state segments of the S1 representative cycle. LRS segments are ohmic ($R^2\ge 0.98$); HRS segments are dominated by Schottky emission, with a Fowler--Nordheim window near the SET transition. No Poole--Frenkel window is admitted by the $\varepsilon _r^{\mathrm  {dyn}}$ test.}}{4}{}\protected@file@percent }
-\newlabel{fig:regimes}{{1}{4}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-B}}Point-Estimate Fit Quality}{4}{}\protected@file@percent }
 \newlabel{sec:res-fit}{{\mbox  {IV-B}}{4}}
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Dominant conduction mechanism and cycle-to-cycle assignment stability for each resistance-state segment and deposition condition. The post-SET LRS is consistently ohmic, whereas the post-RESET HRS is Schottky-dominant for all twelve conditions.}}{5}{}\protected@file@percent }
-\newlabel{fig:mechanism-map}{{2}{5}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Conduction-regime classification of the four resistance-state segments of the S1 representative cycle, using the common-response fit. LRS segments are ohmic ($R^2\ge 0.98$); HRS segments are barrier-limited, with a Schottky-like window where the implied permittivity is admissible and other windows that are near-ohmic or flagged ambiguous. PF candidates with nonphysical $\varepsilon _r^{\mathrm  {dyn}}$ are rejected.}}{5}{}\protected@file@percent }
+\newlabel{fig:regimes}{{1}{5}}
 \@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Validation fit quality per condition: unweighted RMSE of $\qopname  \relax o{log}_{10}|I|$ (decades) and Durbin--Watson statistics.}}{5}{}\protected@file@percent }
 \newlabel{tab:fitquality}{{II}{5}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-C}}Out-of-Sample Generalization Across Measured Cycles}{5}{}\protected@file@percent }
 \newlabel{sec:res-heldout}{{\mbox  {IV-C}}{5}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Out-of-sample fit quality. Box plots: distribution of $\qopname  \relax o{log}_{10}|I|$ RMSE when the model fitted to the medoid cycle is scored against every other measured cycle of the device (whiskers exclude outliers). Stars mark the in-sample (medoid) RMSE. Held-out and in-sample errors are statistically indistinguishable, evidencing generalization rather than overfitting.}}{5}{}\protected@file@percent }
-\newlabel{fig:heldout}{{3}{5}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces S1 fitted curve (red) against the measured cycle-to-cycle envelope (min--max and interquartile bands, with the measured median) along the sweep sequence; the secondary axis marks voltage. The fit stays within the measured spread except at the SET transition and the HRS approach.}}{5}{}\protected@file@percent }
-\newlabel{fig:overlay}{{4}{5}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-D}}Identifiability: What DC Data Actually Constrain}{6}{}\protected@file@percent }
-\newlabel{sec:res-ident}{{\mbox  {IV-D}}{6}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-E}}Ablation: What Each Ingredient Buys}{6}{}\protected@file@percent }
-\newlabel{sec:res-ablation}{{\mbox  {IV-E}}{6}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Cycle-to-cycle parameter variability from 200 cluster-bootstrap refits per condition (color: $\qopname  \relax o{log}_{10}\mathrm  {CV}$). Branch voltage scales are comparatively repeatable; series resistance and velocity prefactors are the least stable. This bootstrap CV is our primary identifiability evidence.}}{6}{}\protected@file@percent }
-\newlabel{fig:param-cv}{{5}{6}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Local Fisher relative uncertainty $\sigma _\theta /|\theta |$ (log color scale) for the 16 active parameters across the twelve conditions, shown as a corroborating cross-check. The extremely large condition numbers ($10^{18}$--$10^{66}$) preclude certifying individual coordinates from this diagnostic alone; conclusions are drawn only where it agrees with Fig.\nobreakspace  {}5\hbox {}.}}{6}{}\protected@file@percent }
-\newlabel{fig:ident}{{6}{6}}
-\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Ablation over all 12 conditions: unweighted validation RMSE (decades), mean $\pm $ standard deviation across conditions.}}{6}{}\protected@file@percent }
-\newlabel{tab:ablation}{{III}{6}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-F}}Deposition-Resolved Extraction}{6}{}\protected@file@percent }
-\newlabel{sec:res-trends}{{\mbox  {IV-F}}{6}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-D}}Unseen-Device Population Validation}{5}{}\protected@file@percent }
+\newlabel{sec:res-population}{{\mbox  {IV-D}}{5}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Dominant conduction mechanism and cycle-to-cycle assignment stability for each resistance-state segment and deposition condition. The post-SET LRS is consistently ohmic; the high-resistance segments are barrier-limited but not cleanly separable (the post-RESET HRS full-window label is near-ohmic in most conditions and Schottky-like in others, with a robust Schottky signature at higher voltage).}}{6}{}\protected@file@percent }
+\newlabel{fig:mechanism-map}{{2}{6}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Out-of-sample fit quality. Box plots: distribution of $\qopname  \relax o{log}_{10}|I|$ RMSE when the model fitted to the medoid cycle is scored against every other measured cycle of the device (whiskers exclude outliers). Stars mark the in-sample (medoid) RMSE. The held-out median tracks the in-sample error closely on average; per-condition agreement varies (S1 RESET is a flagged outlier), so we report the distribution rather than claiming the two are statistically indistinguishable.}}{6}{}\protected@file@percent }
+\newlabel{fig:heldout}{{3}{6}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces S1 fitted curve (red) against the measured cycle-to-cycle envelope (min--max and interquartile bands, with the measured median) along the sweep sequence; the secondary axis marks voltage. The fit stays within the measured spread except at the SET transition and the HRS approach.}}{6}{}\protected@file@percent }
+\newlabel{fig:overlay}{{4}{6}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Unseen-device validation. Box plots: per-cycle $\qopname  \relax o{log}_{10}|I|$ RMSE when the medoid-fitted model is scored against cycles of held-out \emph  {devices} (never used for selection or fitting). Stars mark the same-device held-out median for comparison. The model generalizes to unseen devices with only a modest median increase over same-device cycle hold-out.}}{6}{}\protected@file@percent }
+\newlabel{fig:population}{{5}{6}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-E}}Identifiability: What DC Data Actually Constrain}{6}{}\protected@file@percent }
+\newlabel{sec:res-ident}{{\mbox  {IV-E}}{6}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Cycle-to-cycle parameter variability from 200 cluster-bootstrap refits per condition (color: $\qopname  \relax o{log}_{10}\mathrm  {CV}$). Branch voltage scales are comparatively repeatable; series resistance and velocity prefactors are the least stable. This bootstrap CV is our primary identifiability evidence.}}{7}{}\protected@file@percent }
+\newlabel{fig:param-cv}{{6}{7}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-F}}Ablation: What Each Ingredient Buys}{7}{}\protected@file@percent }
+\newlabel{sec:res-ablation}{{\mbox  {IV-F}}{7}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Fisher relative (log-coordinate) uncertainty $\sigma _{\qopname  \relax o{log}\theta }$ (log color scale) for the 16 active parameters across the twelve conditions, shown as a corroborating cross-check. The Fisher matrix is rank deficient (numerical rank $\approx 8$--$14/16$), so individual coordinates are not certified from this diagnostic alone; conclusions are drawn only where it agrees with Fig.\nobreakspace  {}6\hbox {}.}}{7}{}\protected@file@percent }
+\newlabel{fig:ident}{{7}{7}}
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Ablation over all 12 conditions: unweighted validation RMSE (decades), mean $\pm $ standard deviation across conditions.}}{7}{}\protected@file@percent }
+\newlabel{tab:ablation}{{III}{7}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-G}}Deposition-Resolved Extraction}{7}{}\protected@file@percent }
+\newlabel{sec:res-trends}{{\mbox  {IV-G}}{7}}
 \citation{chowdhury2025mwscas}
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Bootstrap-identifiable parameters versus deposition condition (error bars: cycle-bootstrap 95\% CI). Branch voltage scales (middle, bottom rows) are tightly constrained and carry deposition information; series resistance (top) spans up to two decades and cannot support a response surface despite being locally Fisher-identifiable.}}{8}{}\protected@file@percent }
+\newlabel{fig:trends}{{8}{8}}
+\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Cycle-median dynamic relative permittivity inferred from the post-RESET HRS Schottky-like window (the ten conditions in which a credible window is present), versus oxygen (left) and power (right), with cycle-bootstrap intervals. Shaded band: admissibility interval $[1,60]$. Admissible values support barrier-limited HRS conduction where such a window is observed.}}{8}{}\protected@file@percent }
+\newlabel{fig:schottky}{{9}{8}}
+\@writefile{toc}{\contentsline {section}{\numberline {V}Discussion}{8}{}\protected@file@percent }
+\newlabel{sec:discussion}{{V}{8}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-A}}Implications for Compact-Model Users}{8}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-B}}Model Adequacy for TaO$_x$}{8}{}\protected@file@percent }
 \citation{chiu2014,bocquet2014,bengel2020jart}
 \citation{ielmini2016}
-\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Bootstrap-identifiable parameters versus deposition condition (error bars: cycle-bootstrap 95\% CI). Branch voltage scales (middle, bottom rows) are tightly constrained and carry deposition information; series resistance (top) spans up to two decades and cannot support a response surface despite being locally Fisher-identifiable.}}{7}{}\protected@file@percent }
-\newlabel{fig:trends}{{7}{7}}
-\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Dynamic relative permittivity inferred from the post-RESET HRS Schottky window for all twelve conditions, versus oxygen (left) and power (right). Shaded band: admissibility interval $[1,60]$. All conditions are physically admissible, corroborating interface-limited HRS conduction device-wide.}}{7}{}\protected@file@percent }
-\newlabel{fig:schottky}{{8}{7}}
-\@writefile{toc}{\contentsline {section}{\numberline {V}Discussion}{7}{}\protected@file@percent }
-\newlabel{sec:discussion}{{V}{7}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-A}}Implications for Compact-Model Users}{7}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-B}}Model Adequacy for TaO$_x$}{7}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-C}}Limitations}{7}{}\protected@file@percent }
+\citation{guan2012spice,jiang2016verification}
 \bibcite{wong2012metal}{1}
 \bibcite{ielmini2018inmemory}{2}
 \bibcite{yu2018neuro}{3}
@@ -96,6 +100,11 @@
 \bibcite{transtrum2015sloppiness}{9}
 \bibcite{gutenkunst2007}{10}
 \bibcite{raue2009}{11}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-C}}Limitations}{9}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-D}}Relation to Prior Work}{9}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VI}Conclusion}{9}{}\protected@file@percent }
+\newlabel{sec:conclusion}{{VI}{9}}
+\@writefile{toc}{\contentsline {section}{References}{9}{}\protected@file@percent }
 \bibcite{chis2011}{12}
 \bibcite{chiu2014}{13}
 \bibcite{ielmini2016}{14}
@@ -106,7 +115,4 @@
 \bibcite{chowdhury2025mwscas}{19}
 \bibcite{moazzeni2023}{20}
 \bibcite{lee2011fast}{21}
-\@writefile{toc}{\contentsline {section}{\numberline {VI}Conclusion}{8}{}\protected@file@percent }
-\newlabel{sec:conclusion}{{VI}{8}}
-\@writefile{toc}{\contentsline {section}{References}{8}{}\protected@file@percent }
-\gdef \@abspage@last{8}
+\gdef \@abspage@last{10}

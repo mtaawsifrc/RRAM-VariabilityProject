@@ -41,9 +41,9 @@ function out = main_fit_stanford(csv_path, config_path, outdir, ensemble_path)
     writematrix(fish.F, fullfile(outdir, 'fisher_matrix.csv'));
     save(fullfile(outdir, 'fisher_report.mat'), 'fish');
 
-    fprintf('[main] Stage 4b: profile likelihood (practical identifiability)\n');
-    prof = stage4b_profile_likelihood(refined, setBranch, resetBranch, cfg, outdir);
-    save(fullfile(outdir, 'profile_likelihood.mat'), 'prof');
+    fprintf('[main] Stage 4b: loss slice (1-D, fixed nuisance -- not a profile)\n');
+    prof = stage4b_loss_slice(refined, setBranch, resetBranch, cfg, outdir);
+    save(fullfile(outdir, 'loss_slice.mat'), 'prof');
 
     write_identifiability_report(outdir, priors, refined, fish, prof);
 
@@ -63,11 +63,19 @@ function write_identifiability_report(outdir, priors, refined, fish, prof)
 %WRITE_IDENTIFIABILITY_REPORT Merge Fisher CRLB and profile-likelihood verdicts.
 %   One row per model parameter; this is the headline "which parameters are
 %   actually extractable" table, also consumed by stage3 auto_active refits.
-    lines = {'parameter,theta,active,fisher_rel_sigma,class,profile_verdict,pf_prior_available'};
+    % fisher_rel_sigma is the corrected log-coordinate (relative) uncertainty
+    % sqrt(diag(pinv(F))); fisher_ci95_factor is the approximate multiplicative
+    % 95% CI factor exp(1.96*sigma_logtheta).  The Fisher spectrum is rank
+    % deficient (see fisher_rank.csv), so these certify combinations, not
+    % individual coordinates -- read together with the cycle bootstrap.
+    lines = {['parameter,theta,active,fisher_rel_sigma,fisher_ci95_factor,', ...
+              'class,profile_verdict,pf_prior_available']};
     pfa = '';
     if isfield(priors, 'pf_available')
         pfa = sprintf('%d/%d', priors.pf_available(1), priors.pf_available(2));
     end
+    ci95 = ones(1, numel(priors.names));
+    if isfield(fish, 'ci95_factor'); ci95 = fish.ci95_factor; end
     for j = 1:numel(priors.names)
         nm = priors.names{j};
         isActive = ismember(nm, refined.active_names);
@@ -78,14 +86,28 @@ function write_identifiability_report(outdir, priors, refined, fish, prof)
                 verdict = prof.verdict{pk};
             end
         end
-        lines{end + 1} = sprintf('%s,%.8g,%d,%.6g,%s,%s,%s', nm, ...
-            refined.theta(j), isActive, fish.rel_sigma(j), fish.class{j}, ...
-            verdict, pfa); %#ok<AGROW>
+        lines{end + 1} = sprintf('%s,%.8g,%d,%.6g,%.6g,%s,%s,%s', nm, ...
+            refined.theta(j), isActive, fish.rel_sigma(j), ci95(j), ...
+            fish.class{j}, verdict, pfa); %#ok<AGROW>
     end
     fid = fopen(fullfile(outdir, 'identifiability_report.csv'), 'w');
     if fid ~= -1
         fprintf(fid, '%s\n', lines{:});
         fclose(fid);
+    end
+    % Numerical-rank summary: a rank, not an exact "orders of magnitude" span.
+    if isfield(fish, 'num_rank')
+        rlines = {'n_params,numerical_rank,sv_max,sv_min_above_tol,sv_tol'};
+        sv = fish.sing_vals(:);
+        sv_keep = sv(sv > fish.sv_tol);
+        sv_min_keep = NaN; if ~isempty(sv_keep); sv_min_keep = min(sv_keep); end
+        rlines{end + 1} = sprintf('%d,%d,%.6g,%.6g,%.6g', numel(priors.names), ...
+            fish.num_rank, max(sv), sv_min_keep, fish.sv_tol);
+        fid2 = fopen(fullfile(outdir, 'fisher_rank.csv'), 'w');
+        if fid2 ~= -1
+            fprintf(fid2, '%s\n', rlines{:});
+            fclose(fid2);
+        end
     end
 end
 

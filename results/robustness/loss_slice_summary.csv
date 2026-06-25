@@ -1,0 +1,5 @@
+condition,n,flat,moderate,steep
+S1,16,15,1,0
+S2,16,15,1,0
+S3,16,15,0,1
+S4,16,10,1,5

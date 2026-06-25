@@ -28,10 +28,22 @@ function L = eval_loss(t, priors, active_names, setB, resetB, cfg)
     Lset = weighted_mean_sq(rS, wS);
     Lreset = weighted_mean_sq(rR, wR);
 
+    % Switching-threshold term.  detect_threshold smooths log|I| and excludes a
+    % small voltage margin at both sweep boundaries, then returns NaN when no
+    % reliable interior d(log|I|)/dV extremum exists.  A NaN threshold is simply
+    % dropped (the metric is "unavailable") rather than being pinned to the 0 V
+    % sweep boundary, which previously created a boundary artifact that could
+    % dominate the loss (e.g. the anomalous S10 objective).
     Vset_sim = detect_threshold(setB.voltage_V, Iset, 'set');
     Vreset_sim = detect_threshold(resetB.voltage_V, Ires, 'reset');
     sigV = voltage_step_sigma(setB, resetB);
-    Lv = ((Vset_sim - priors.feats.Vset)^2 + (Vreset_sim - priors.feats.Vreset)^2) / sigV^2;
+    Lv = 0; nV = 0;
+    if isfinite(Vset_sim) && isfinite(priors.feats.Vset)
+        Lv = Lv + (Vset_sim - priors.feats.Vset)^2 / sigV^2; nV = nV + 1;
+    end
+    if isfinite(Vreset_sim) && isfinite(priors.feats.Vreset)
+        Lv = Lv + (Vreset_sim - priors.feats.Vreset)^2 / sigV^2; nV = nV + 1;
+    end
 
     if isfield(priors, 'loss_mu')
         loss_mu = priors.loss_mu;
@@ -41,6 +53,18 @@ function L = eval_loss(t, priors, active_names, setB, resetB, cfg)
     finitePrior = isfinite(priors.sigma) & priors.sigma > 0;
     Lprior = sum(((theta(finitePrior) - loss_mu(finitePrior)) ./ priors.sigma(finitePrior)).^2, 'omitnan');
     L = Lset + Lreset + 0.5 * Lv + 0.1 * Lprior;
+    % Surface component-wise terms and warn when the threshold penalty dominates,
+    % which usually signals a threshold-detection artifact rather than physics.
+    if field_or(cfg, 'verbose_loss', 0)
+        fprintf(['[eval_loss] Lset=%.4g Lreset=%.4g 0.5*Lv=%.4g (nV=%d) ', ...
+            '0.1*Lprior=%.4g -> L=%.4g\n'], Lset, Lreset, 0.5 * Lv, nV, ...
+            0.1 * Lprior, L);
+    end
+    if 0.5 * Lv > (Lset + Lreset) && nV > 0
+        warning('eval_loss:thresholdDominates', ...
+            'threshold term (%.4g) exceeds branch loss (%.4g); check detect_threshold', ...
+            0.5 * Lv, Lset + Lreset);
+    end
     if ~isfinite(L)
         L = 1e6;
     end
@@ -107,19 +131,55 @@ function sig = current_sigma_log(T)
 end
 
 function Vth = detect_threshold(V, I, kind)
+%DETECT_THRESHOLD Switching voltage from the smoothed d(log|I|)/dV extremum.
+%   The current is smoothed before differentiation and a small voltage margin
+%   is excluded at both sweep boundaries, so the detector cannot lock onto the
+%   0 V (or end-of-sweep) boundary as a spurious "switching point".  Returns
+%   NaN when no reliable interior extremum exists; the caller then treats the
+%   threshold metric as unavailable instead of assigning a boundary voltage.
     V = V(:);
     logI = log10(max(abs(I(:)), 1e-14));
-    if numel(V) < 3 || any(~isfinite(V)) || any(~isfinite(logI))
+    if numel(V) < 5 || any(~isfinite(V)) || any(~isfinite(logI))
         Vth = NaN;
         return;
     end
     [Vu, ia] = unique(V, 'stable');
     logIu = logI(ia);
-    dlogI = gradient(logIu, Vu);
+    n = numel(Vu);
+    if n < 5
+        Vth = NaN;
+        return;
+    end
+    % Smooth log|I| with a short moving average before differentiating.
+    win = min(5, 1 + 2 * floor(n / 10));     % odd window, scales with length
+    logIs = movmean(logIu, win);
+    dlogI = gradient(logIs, Vu);
+    % Exclude a margin (~8% of the voltage span, >=2 samples) at both ends so
+    % the boundary slope cannot be selected as the threshold.
+    span = max(Vu) - min(Vu);
+    margin = 0.08 * span;
+    interior = (Vu >= min(Vu) + margin) & (Vu <= max(Vu) - margin);
+    if sum(interior) < 3
+        Vth = NaN;
+        return;
+    end
+    dInt = dlogI;
+    dInt(~interior) = NaN;
     if strcmp(kind, 'set')
-        [~, ix] = max(dlogI);
+        [ext, ix] = max(dInt);
     else
-        [~, ix] = min(dlogI);
+        [ext, ix] = min(dInt);
+    end
+    if ~isfinite(ext)
+        Vth = NaN;
+        return;
+    end
+    % Require the interior extremum to stand out from the typical interior
+    % slope; an essentially flat profile has no identifiable threshold.
+    dvals = dInt(isfinite(dInt));
+    if numel(dvals) >= 3 && abs(ext - median(dvals)) < 1e-6
+        Vth = NaN;
+        return;
     end
     Vth = Vu(ix);
 end

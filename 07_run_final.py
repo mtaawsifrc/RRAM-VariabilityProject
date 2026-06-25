@@ -76,7 +76,7 @@ def main() -> int:
         else:
             print(f"[{c}] regime classification failed; legacy prior windows")
         if args.skip_profile:
-            overrides["run_profile"] = 0
+            overrides["run_slice"] = 0
 
         outdir = ROOT / "results" / f"{c}_taofit"
         cfg = write_cfg(base, overrides)

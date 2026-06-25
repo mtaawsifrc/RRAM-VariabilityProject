@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the single-column DRC/IEDM-style summary as a .docx.
 
-Pages 1-2: continuous writing (no sections). Remaining pages: all 8 figures and
+Pages 1-2: continuous writing (no sections). Remaining pages: all figures and
 3 tables from the full paper, each with a caption. Figures are embedded from the
 existing PNG renders in ../results and ../step02_S1.
 """
@@ -41,7 +41,7 @@ def body(text):
 t = doc.add_paragraph()
 t.alignment = WD_ALIGN_PARAGRAPH.CENTER
 t.paragraph_format.space_after = Pt(2)
-rt = t.add_run("Device-Guided Calibration of the Stanford RRAM Model: Generalization, Identifiability, and Deposition Trends in Sputter-Deposited TaO$_x$ Devices")
+rt = t.add_run("Device-Guided Calibration of the Stanford RRAM Model: Generalization, Identifiability, and Deposition Trends in Sputter-Deposited TaOₓ Devices")
 rt.bold = True
 rt.font.size = Pt(14)
 
@@ -100,10 +100,12 @@ paras = [
 "tests below.",
 
 "Before any fitting, each resistance-state segment of the representative loop is classified as "
-"ohmic, Poole–Frenkel, Schottky, or Fowler–Nordheim conduction (Fig. 1). Because some of "
-"these signatures look almost identical over a short voltage span, we add a physical sanity "
-"check: the measured slope is converted into an effective dielectric constant, and a label is "
-"accepted only if that value is physically reasonable for the 7-nm oxide. The model itself — "
+"ohmic, Poole–Frenkel, Schottky, or Fowler–Nordheim conduction (Fig. 1). The four candidates "
+"are fit to the same common log-current response so their information criteria are directly "
+"comparable, a window is flagged ‘ambiguous’ when the best two candidates are statistically "
+"close, and the implied dielectric constant is used only to reject physically nonphysical "
+"interface fits — never to confirm a mechanism — so the labels are a model-adequacy diagnostic "
+"rather than proof of a microscopic mechanism. The model itself — "
 "the Stanford Verilog-A description — is then simulated in HSPICE, and its parameters are "
 "tuned to match the measured loop on a logarithmic current scale (the sweep spans several "
 "decades of current, so a log scale gives all of them fair weight). The search uses Bayesian "
@@ -123,23 +125,27 @@ paras = [
 "random scatter: a simple residual test — the Durbin–Watson statistic, which detects whether "
 "the error drifts smoothly along the sweep rather than jittering point to point — shows it is "
 "systematic. That is the signature of a missing physical term, not of optimizer failure, and "
-"the regime map tells us which term: the high-resistance state (HRS) is interface-limited "
-"Schottky conduction in 92.5–100% of cycles for every condition (Fig. 2), a mechanism the "
-"Stanford bulk current law does not contain. A controlled ablation (Table III) makes the same "
+"the regime map points to the likely term: the high-resistance state (HRS) is barrier-limited "
+"(Schottky-like where a credible window is present), a mechanism the Stanford bulk current law "
+"does not contain, although room-temperature DC data cannot cleanly separate it from a "
+"near-ohmic trend (Fig. 2). A controlled ablation (Table III) makes the same "
 "point from the optimization side: removing the search nearly triples the RESET error, yet the "
 "three optimized variants land within a few hundredths of a decade of each other, so a low "
 "overlay error by itself cannot single out the right physics.",
 
-"The most important check is whether a fit made on one cycle describes the cycles it never "
-"saw. We score the fitted curve, point by point, against every measured cycle of the device. "
-"Averaged over conditions, this held-out error is 0.542 (SET) and 0.800 (RESET) decades, "
-"versus the in-sample 0.530 and 0.761 — a gap of only about 0.01–0.04 decade (Fig. 3). For "
-"every condition the fitted-cycle value sits inside the spread of the held-out cycles, and "
-"the fitted S1 curve stays within the measured cycle-to-cycle envelope along almost the entire "
-"sweep, departing only at the SET transition and the Schottky-limited HRS approach (Fig. 4). "
-"In other words, the representative cycle is simply the most central member of a population "
-"the model reproduces uniformly: the calibration is a property of the device, not an artifact "
-"of which loop we happened to fit.",
+"The most important check is whether a fit made on one cycle describes data it never saw. "
+"We first score the fitted curve against every other measured cycle of the same device: "
+"averaged over conditions this held-out error is 0.542 (SET) and 0.800 (RESET) decades, "
+"versus the in-sample 0.530 and 0.761 — a small average gap (Fig. 3), though the per-condition "
+"agreement varies and S1 RESET is a flagged outlier, so we report the distribution rather than "
+"claiming the two are indistinguishable. The fitted S1 curve stays within the measured "
+"cycle-to-cycle envelope along almost the entire sweep, departing only at the SET transition "
+"and the HRS approach (Fig. 4). The stronger test is split-safe population validation: "
+"over the full population (545 device records, ~10,900 cycles) we form leakage-free "
+"device-level splits and score the medoid-fitted model against cycles of entirely unseen "
+"devices. The unseen-device median error (0.580 SET, 0.861 RESET) exceeds the same-device "
+"value by only ~0.04–0.06 decade, genuine population-scale evidence that the calibration is a "
+"property of the device population, not an artifact of which loop we fitted (Fig. 11).",
 
 "A fit that generalizes can still hide parameters that the data do not actually determine. To "
 "find them we resample the measurement: we repeatedly draw random subsets of the measured "
@@ -154,9 +160,11 @@ paras = [
 "(Fig. 5). A purely local sensitivity calculation (a Fisher analysis; Fig. 6) can be "
 "misleading here: it makes series resistance look well determined at a single fit, yet that "
 "same parameter wanders the most under resampling. Decomposing the Fisher information into its "
-"natural directions makes the situation precise (Fig. 9): the sensitivity spectrum spans on "
-"average about 37 orders of magnitude, with a single dominant well-determined direction — a "
-"textbook ‘sloppy’ model. The honest conclusion is that DC butterfly data constrain one or "
+"natural directions makes the situation precise (Fig. 9): the matrix is rank deficient "
+"(numerical rank roughly 8–14 of 16 directions), with a few stiff well-determined directions "
+"and many sloppy ones — a textbook ‘sloppy’ model. We report this rank rather than an exact "
+"eigenvalue span, because eigenvalues far below the largest are double-precision noise, not "
+"measurable information. The honest conclusion is that DC butterfly data constrain one or "
 "two effective combinations far better than they constrain a unique split into current "
 "prefactor, gap size, activation energy, and kinetic prefactor.",
 
@@ -174,11 +182,12 @@ paras = [
 "bootstrap captures the dominant uncertainty and the device-to-device differences are mostly "
 "cycling, not fabrication. Finally, the regime classifier yields a process-facing observable "
 "that is not a fitting knob at all: the effective dielectric constant of the post-RESET "
-"Schottky barrier, now measured on every cycle. Its per-condition median lands between about "
-"5 and 25 — physically reasonable — for all twelve conditions, each with a cycle-bootstrap "
-"error bar (Fig. 8), confirming interface-limited Schottky emission across the entire process "
-"window. Crucially this observable stays meaningful exactly where the compact-model "
-"parameters do not, because it is read from the data, not fitted.",
+"Schottky-like window, measured on every cycle where such a window is credible. Its "
+"per-condition median lands between about 5 and 23 — physically reasonable — in the ten "
+"conditions that show the window, each with a cycle-bootstrap error bar (Fig. 8), supporting "
+"barrier-limited HRS conduction where it is observed. Crucially this observable stays "
+"meaningful exactly where the compact-model parameters do not, because it is read from the "
+"data, not fitted.",
 ]
 for ptext in paras:
     body(ptext)
@@ -189,18 +198,20 @@ concl.paragraph_format.space_after = Pt(4)
 concl.add_run("In summary, ").bold = True
 concl.add_run(
 "for sputter-deposited TaOₓ the Stanford compact model can be calibrated to within about half "
-"a current decade, and — more importantly — that calibration generalizes from one "
-"representative cycle to the full measured-cycle population of the device. But the fitted "
-"parameter table must not be read uniformly: the parameterization is profoundly sloppy, and of "
-"all its columns only the SET voltage scale passes a formal deposition-trend test, while "
-"series resistance, velocity prefactors, activation energies, and gap geometry behave as "
-"numerical fitting knobs rather than process outputs from DC sweeps alone. The same analysis "
-"pinpoints the model's physical limitation — the post-RESET HRS is Schottky-limited in nearly "
-"every cycle of every condition, a mechanism the Stanford bulk current law lacks. The "
-"practical recommendation is therefore to report an RRAM compact-model calibration as four "
-"items together — fit quality, cycle-to-cycle generalization, parameter identifiability, and "
-"conduction-mechanism validity — rather than a single overlay plot, so a reader can tell which "
-"extracted numbers are measurements of the device and which are merely well-fitting knobs.")
+"a current decade, and — more importantly — that calibration generalizes not only across the "
+"cycles of the fitted device but to entirely unseen devices in a split-safe population test. "
+"But the fitted parameter table must not be read uniformly: the parameterization is rank "
+"deficient (profoundly sloppy), and of all its columns only the SET voltage scale passes a "
+"formal deposition-trend test, while series resistance (fully bound-pinned), velocity "
+"prefactors, activation energies, and gap geometry behave as numerical fitting knobs rather "
+"than process outputs from DC sweeps alone. The same analysis points to the model's physical "
+"limitation — the post-RESET HRS is barrier-limited (Schottky-like where credible), a "
+"mechanism the Stanford bulk current law lacks, though room-temperature DC data cannot confirm "
+"a single microscopic mechanism. The practical recommendation is therefore to report an RRAM "
+"compact-model calibration as four items together — fit quality, population-level "
+"generalization, parameter identifiability, and conduction-mechanism validity — rather than a "
+"single overlay plot, so a reader can tell which extracted numbers are measurements of the "
+"device and which are merely well-fitting knobs.")
 
 # ===================== TABLES + FIGURES =====================
 doc.add_page_break()
@@ -275,15 +286,16 @@ doc.add_paragraph().paragraph_format.space_after = Pt(2)
 # ---- Figures (2-column grid) ----
 figs = [
  ("step02_S1/S1_B6-01-4um-12_regime_overview.png", 2.9,
-  ("Fig. 1.", " Conduction-regime classification of the four resistance-state segments of a "
-   "representative S1 cycle. The two low-resistance (LRS) segments are ohmic (R²≥0.98); the two "
-   "high-resistance (HRS) segments are Schottky-limited, with a Fowler–Nordheim window near the "
-   "SET transition. This map tells the fitter where the Stanford bulk current law can and "
-   "cannot follow the data.")),
+  ("Fig. 1.", " Conduction-regime classification (common-response fit) of the four "
+   "resistance-state segments of a representative S1 cycle. The two low-resistance (LRS) "
+   "segments are ohmic (R²≥0.98); the two high-resistance (HRS) segments are barrier-limited, "
+   "with a Schottky-like window where the implied permittivity is admissible. This map tells "
+   "the fitter where the Stanford bulk current law can and cannot follow the data.")),
  ("results/variability/mechanism_map.png", 2.9,
   ("Fig. 2.", " Dominant conduction mechanism and its cycle-to-cycle stability for every "
    "resistance-state segment and all twelve conditions. The post-SET LRS is consistently ohmic; "
-   "the post-RESET HRS is Schottky-dominant in 92.5–100% of cycles everywhere.")),
+   "the high-resistance segments are barrier-limited but not cleanly separable, with a robust "
+   "Schottky-like signature at higher voltage and many windows flagged ambiguous.")),
  ("results/paper_alt/heldout_rmse.png", 2.9,
   ("Fig. 3.", " Out-of-sample test. Box plots show the error (in current decades) when the model "
    "fitted to one representative cycle is scored against every other measured cycle of the same "
@@ -300,29 +312,37 @@ figs = [
    "scales are repeatable; series resistance and the velocity prefactors are not. This is our "
    "primary identifiability evidence.")),
  ("results/publication/identifiability_heatmap.png", 2.9,
-  ("Fig. 6.", " Local Fisher (one-point sensitivity) relative uncertainty for the 16 active "
-   "parameters across the twelve conditions, shown only as a cross-check. The extreme condition "
-   "numbers (10¹⁸–10⁶⁶) prevent certifying individual parameters from this map alone; "
-   "conclusions are drawn only where it agrees with Fig. 5.")),
+  ("Fig. 6.", " Fisher relative (log-coordinate) uncertainty for the 16 active "
+   "parameters across the twelve conditions, shown only as a cross-check. The Fisher matrix is "
+   "rank deficient (numerical rank ≈8–14/16), so individual parameters are not certified from "
+   "this map alone; conclusions are drawn only where it agrees with Fig. 5.")),
  ("results/paper_alt/deposition_trends.png", 2.6,
   ("Fig. 7.", " Process trends for the repeatable parameters (points: bootstrap median; error "
    "bars: cycle-bootstrap 95% interval). A formal response-surface test (center points as "
    "pure error) finds only the SET voltage scale significant in oxygen and power; series "
    "resistance (top) spans up to two decades and is not a process output.")),
  ("results/paper_alt/hrs_schottky_trend.png", 2.9,
-  ("Fig. 8.", " Effective dielectric constant of the post-RESET Schottky window, now measured "
-   "on every cycle and shown as the per-condition median with a cycle-bootstrap 95% interval. "
-   "The shaded band is the physically admissible range; all twelve medians fall inside it, "
-   "confirming interface-limited HRS conduction across the entire process window.")),
+  ("Fig. 8.", " Effective dielectric constant of the post-RESET Schottky-like window, measured "
+   "on every cycle where the window is credible, shown as the per-condition median with a "
+   "cycle-bootstrap 95% interval. The shaded band is the physically admissible range; the ten "
+   "conditions with such a window fall inside it, supporting barrier-limited HRS conduction "
+   "where it is observed.")),
  ("results/robustness/sloppy_spectrum.png", 2.9,
-  ("Fig. 9.", " Sloppiness of the Stanford parameterization. Left: normalized sensitivity "
-   "(Fisher eigenvalue) spectra for all twelve conditions, falling over tens of decades. "
-   "Right: how much each parameter participates in the single best-determined direction — a "
-   "coupled current-scale/gap combination, not any one microscopic parameter.")),
+  ("Fig. 9.", " Sloppiness of the Stanford parameterization. Left: normalized Fisher eigenvalue "
+   "spectra for all twelve conditions; the matrix is rank deficient (a few stiff directions, "
+   "many sloppy ones below the numerical floor). Right: how much each parameter participates in "
+   "the single best-determined direction — a coupled current-scale/gap combination, not any one "
+   "microscopic parameter.")),
  ("results/robustness/variance_components.png", 2.9,
   ("Fig. 10.", " Cycle-to-cycle vs. device-to-device spread from the four repeated center-point "
    "devices (S9–S12). For every parameter the cycle-to-cycle spread dominates, so the scatter "
    "among nominally identical devices is mostly cycling, not fabrication.")),
+ ("results/population/unseen_device_validation.png", 2.9,
+  ("Fig. 11.", " Split-safe unseen-device validation. Box plots: per-cycle error when the "
+   "medoid-fitted model is scored against cycles of held-out devices never used for selection "
+   "or fitting (leakage-free device-level splits over 545 device records); stars mark the "
+   "same-device held-out median. The model generalizes to unseen devices with only a modest "
+   "median increase.")),
 ]
 
 nrows = (len(figs) + 1) // 2

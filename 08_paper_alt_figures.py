@@ -365,8 +365,21 @@ def heldout_validation():
               f"within-IQR {100*s.frac_within_iqr.mean():.1f}%")
 
 
+def _require(path, hint):
+    """Fail loudly when a required upstream artifact is missing (provenance)."""
+    if not os.path.exists(path):
+        raise SystemExit(
+            f"[08] required input missing: {path}\n      {hint}")
+
+
 if __name__ == "__main__":
     print("Writing reframed-paper figures to results/paper_alt/\n")
+    # Lightweight provenance: these figures are generated from a known set of
+    # upstream CSV/.mat files; fail loudly rather than emit stale/empty figures.
+    _require(os.path.join(ROOT, "results/variability/parameter_cis.csv"),
+             "run 06_run_variability.py (or --reanalyze) first.")
+    _require(os.path.join(ROOT, "results/ablation/S1/physics_regime_bo/validation.mat"),
+             "run 05_run_ablation.py first (needed for held-out reconstruction).")
     deposition_trends()
     hrs_schottky_trend()
     heldout_validation()

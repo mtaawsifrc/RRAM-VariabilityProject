@@ -12,17 +12,23 @@ Inputs (all pre-existing):
                                                          refined optimum, prior box
   results/<cond>_taofit/fisher_matrix.csv               log-coord Fisher matrix
   results/<cond>_taofit/refined.mat                      names / active set
-  results/<cond>_taofit/profile_summary.csv             (S1-S4) profile verdicts
+  results/<cond>_taofit/loss_slice_summary.csv          (S1-S4) 1-D loss-slice
+                                                        shapes (legacy name:
+                                                        profile_summary.csv)
   results/paper_alt/heldout_validation.csv              held-out RMSE per condition
 
 Outputs (results/robustness/):
   A1  ci_consistency.csv          refined optimum vs bootstrap percentile CI
   A2  bound_railing.csv           fraction of bootstrap draws pinned to box edges
   A3  generalization_gap.csv      per-condition in-sample vs held-out RMSE gap
-  A4  profile_likelihood_summary.csv   aggregated profile-likelihood verdicts
+  A4  loss_slice_summary.csv      aggregated 1-D loss-slice shapes (slices, not
+                                   true profile likelihoods)
   B1/B2 sloppy_spectrum.csv + sloppy_spectrum.{pdf,png}
-                                   Fisher eigenvalue spectra (sloppiness) and the
-                                   stiff/sloppy eigenvector composition
+                                   Fisher eigenvalue spectra (sloppiness), the
+                                   stiff/sloppy eigenvector composition, and the
+                                   numerical rank (rank deficiency, not an exact
+                                   "orders of magnitude" span)
+  --  fisher_rank.csv             per-condition numerical rank of the Fisher matrix
   B3  doe_response_surface.csv     formal DOE significance + lack-of-fit test on
                                    the identifiable parameters
   B4  variance_components.csv + variance_components.{pdf,png}
@@ -172,30 +178,40 @@ def a3_generalization_gap():
 
 
 # ---------------------------------------------------------------------------
-# A4 : aggregate profile-likelihood verdicts over available conditions
+# A4 : aggregate 1-D loss-slice shapes over available conditions
+#      NOTE: these are loss SLICES (nuisance fixed), not true profile
+#      likelihoods, so 'flat' is suggestive of practical non-identifiability
+#      but is not a formal profile-likelihood verdict.
 # ---------------------------------------------------------------------------
-def a4_profile_summary():
-    print("[A4] profile-likelihood verdict aggregation")
+def a4_loss_slice_summary():
+    print("[A4] loss-slice shape aggregation (slices, not profiles)")
     rows = []
     for c in CONDS:
-        f = os.path.join(ROOT, "results", f"{c}_taofit", "profile_summary.csv")
+        # new file name first, fall back to the legacy profile_summary.csv
+        f = os.path.join(ROOT, "results", f"{c}_taofit", "loss_slice_summary.csv")
+        legacy = os.path.join(ROOT, "results", f"{c}_taofit", "profile_summary.csv")
+        col = "slice_shape"
+        if not os.path.exists(f) and os.path.exists(legacy):
+            f, col = legacy, "verdict"
         if not os.path.exists(f):
             continue
         d = pd.read_csv(f)
-        vc = d["verdict"].value_counts().to_dict()
-        rows.append(dict(condition=c, n=len(d),
-                         flat=vc.get("flat_non_identifiable", 0),
-                         weak=vc.get("weakly_identifiable", 0),
-                         identifiable=vc.get("identifiable", 0)))
+        vc = d[col].value_counts().to_dict()
+        # accept both new descriptive labels and legacy verdict strings
+        flat = vc.get("flat", 0) + vc.get("flat_non_identifiable", 0)
+        moderate = vc.get("moderate", 0) + vc.get("weakly_identifiable", 0)
+        steep = vc.get("steep", 0) + vc.get("identifiable", 0)
+        rows.append(dict(condition=c, n=len(d), flat=flat,
+                         moderate=moderate, steep=steep))
     if not rows:
-        print("  no profile_summary.csv found; skipped"); return None
+        print("  no loss_slice_summary.csv found; skipped"); return None
     df = pd.DataFrame(rows)
-    tot = df[["n", "flat", "weak", "identifiable"]].sum()
-    df.to_csv(os.path.join(OUT, "profile_likelihood_summary.csv"), index=False)
-    print(f"  conditions with profile scans: {list(df.condition)}")
-    print(f"  pooled: {tot['flat']}/{tot['n']} flat/non-identifiable "
-          f"({100*tot['flat']/tot['n']:.0f}%), {tot['weak']} weak, "
-          f"{tot['identifiable']} identifiable")
+    tot = df[["n", "flat", "moderate", "steep"]].sum()
+    df.to_csv(os.path.join(OUT, "loss_slice_summary.csv"), index=False)
+    print(f"  conditions with loss-slice scans: {list(df.condition)}")
+    print(f"  pooled: {tot['flat']}/{tot['n']} flat slices "
+          f"({100*tot['flat']/tot['n']:.0f}%), {tot['moderate']} moderate, "
+          f"{tot['steep']} steep (descriptive shapes, not CI thresholds)")
     return df
 
 
@@ -233,19 +249,43 @@ def b1_b2_sloppy_spectrum():
     if not specs:
         print("  no populated Fisher matrices found; skipped"); return None
 
-    # spectra table (normalized eigenvalues per condition)
-    rows = []
+    # spectra table (normalized eigenvalues per condition) + numerical rank.
+    # We deliberately report a numerical RANK rather than an exact eigenvalue
+    # span: eigenvalues below ~1e-16 of the top one (singular values below
+    # ~1e-8) are numerical noise at double precision, so a "37 orders of
+    # magnitude" headline would be reporting round-off, not measurable
+    # information.  The honest statement is "rank deficient / sloppy".
+    EIG_REL_TOL = 1e-16          # eigenvalue tolerance (sv_tol^2, sv_tol=1e-8)
+    rows, rank_rows = [], []
     for c in conds_used:
         w = specs[c]
         wmax = w.max()
-        wpos = w[w > 0]
-        cond_number = (wmax / wpos.min()) if wpos.size else np.inf
+        tol = wmax * EIG_REL_TOL
+        num_rank = int(np.sum(w > tol))
+        wabove = w[w > tol]
+        # resolvable dynamic range counts only directions above numerical noise
+        resolvable_range = (wabove.max() / wabove.min()) if wabove.size else np.nan
         for k, val in enumerate(w):
             rows.append(dict(condition=c, mode=k + 1, eigenvalue=val,
-                             eigenvalue_norm=val / wmax if wmax > 0 else np.nan))
-        print(f"  {c}: {len(active_ref)} active dirs, log10 dynamic range "
-              f"{np.log10(cond_number):.1f}")
+                             eigenvalue_norm=val / wmax if wmax > 0 else np.nan,
+                             above_numerical_floor=bool(val > tol)))
+        rank_rows.append(dict(condition=c, n_active=len(active_ref),
+                              numerical_rank=num_rank,
+                              rank_deficiency=len(active_ref) - num_rank,
+                              log10_resolvable_range=(np.log10(resolvable_range)
+                                                      if np.isfinite(resolvable_range)
+                                                      else np.nan)))
+        print(f"  {c}: {len(active_ref)} active dirs, numerical rank "
+              f"{num_rank}/{len(active_ref)} (rank deficiency "
+              f"{len(active_ref) - num_rank}); resolvable log10 range "
+              f"{np.log10(resolvable_range):.1f}" if np.isfinite(resolvable_range)
+              else f"  {c}: rank {num_rank}/{len(active_ref)}")
     pd.DataFrame(rows).to_csv(os.path.join(OUT, "sloppy_spectrum.csv"), index=False)
+    rank_df = pd.DataFrame(rank_rows)
+    rank_df.to_csv(os.path.join(OUT, "fisher_rank.csv"), index=False)
+    print(f"  median numerical rank {int(rank_df.numerical_rank.median())}/"
+          f"{len(active_ref)} across {len(conds_used)} conditions "
+          f"(report rank deficiency, NOT an exact eigenvalue span)")
 
     stiff_mean = np.mean(stiff_part, axis=0)
     sloppy_mean = np.mean(sloppy_part, axis=0)
@@ -404,11 +444,23 @@ def b4_variance_components():
     return vc
 
 
+def _require_any_variability():
+    """Fail loudly if no per-condition variability run exists (provenance)."""
+    have = [c for c in CONDS
+            if os.path.exists(os.path.join(VAR, c, "validation.mat"))]
+    if not have:
+        raise SystemExit(
+            "[09] required inputs missing: no results/variability/<cond>/validation.mat "
+            "found.\n      run 06_run_variability.py first.")
+    return have
+
+
 if __name__ == "__main__":
     print("Robustness + novelty post-processing -> results/robustness/\n")
+    _require_any_variability()
     a1_a2_interval_diagnostics()
     a3_generalization_gap()
-    a4_profile_summary()
+    a4_loss_slice_summary()
     b1_b2_sloppy_spectrum()
     b3_doe_response_surface()
     b4_variance_components()

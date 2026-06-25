@@ -1,42 +1,50 @@
-function prof = stage4b_profile_likelihood(refined, setB, resetB, cfg, outdir)
-%STAGE4B_PROFILE_LIKELIHOOD 1-D loss profiles around the fitted optimum.
-%   Fisher (Stage 2) is a local, linearized bound; a flat 1-D profile is the
-%   direct, journal-grade evidence of *practical* non-identifiability. For each
-%   active parameter, scan n_profile points across
-%   [max(lb, theta-2sigma), min(ub, theta+2sigma)] with every other parameter
-%   fixed at the optimum, then classify by the loss rise at the window edges
-%   (chi^2-style thresholds): min-edge rise < 1 -> flat (practically
-%   non-identifiable), < 4 -> weak, otherwise identifiable.
+function prof = stage4b_loss_slice(refined, setB, resetB, cfg, outdir)
+%STAGE4B_LOSS_SLICE 1-D loss slices around the fitted optimum.
+%   For each active parameter this scans n_slice points across
+%   [max(lb, theta-2sigma), min(ub, theta+2sigma)] with EVERY OTHER PARAMETER
+%   HELD FIXED at the optimum.  Because the nuisance parameters are NOT
+%   reoptimized at each grid point, this is a one-dimensional slice of the loss
+%   surface, NOT a true profile likelihood.  It is therefore reported as a
+%   "loss slice": a flat slice is suggestive of practical non-identifiability,
+%   but the edge-rise values must NOT be read as formal profile-likelihood
+%   confidence thresholds.  A true profile would reoptimize the other
+%   parameters at each fixed value (future work).
 %
-%   Gated by cfg.run_profile (default 0): each grid point costs one SET + one
-%   RESET HSPICE simulation, so enable this for final/publication runs only.
+%   The slice shape is labelled descriptively from the minimum edge rise:
+%     d_min < 1 -> 'flat'      (slice gives no curvature in this coordinate)
+%     d_min < 4 -> 'moderate'  (some curvature along the slice)
+%     else      -> 'steep'     (strong curvature along the slice)
+%   These are descriptive shape labels, not identifiability verdicts.
+%
+%   Gated by cfg.run_slice (or legacy cfg.run_profile): each grid point costs
+%   one SET + one RESET HSPICE simulation, so enable for final runs only.
 %
 %   Outputs in OUTDIR:
-%     profile_likelihood.csv  long format: parameter,value,loss
-%     profile_summary.csv     parameter,theta_hat,loss_opt,delta_lo,delta_hi,verdict
+%     loss_slice.csv          long format: parameter,value,loss
+%     loss_slice_summary.csv  parameter,theta_hat,loss_opt,delta_lo,delta_hi,slice_shape
     prof = struct('names', {{}}, 'theta_hat', [], 'loss_opt', NaN, ...
         'delta_lo', [], 'delta_hi', [], 'verdict', {{}}, 'grids', {{}}, 'losses', {{}});
-    if ~field_or(cfg, 'run_profile', 0)
+    if ~(field_or(cfg, 'run_slice', 0) || field_or(cfg, 'run_profile', 0))
         return;
     end
     priors = refined.priors;
     names = refined.active_names;
-    nG = max(3, round(field_or(cfg, 'n_profile', 7)));
+    nG = max(3, round(field_or(cfg, 'n_slice', field_or(cfg, 'n_profile', 7))));
 
     priors_local = priors;
     priors_local.theta_base = refined.theta;
     priors_local.loss_mu = priors.mu;
 
-    % Loss at the optimum (reference for the profile deltas).
+    % Loss at the optimum (reference for the slice deltas).
     j1 = find(strcmp(priors.names, names{1}), 1);
     t0 = table();
     t0.(names{1}) = refined.theta(j1);
     L0 = eval_loss(t0, priors_local, names(1), setB, resetB, cfg);
-    fprintf('[stage4b] profiling %d parameters, %d points each (loss_opt=%.4g)\n', ...
-        numel(names), nG, L0);
+    fprintf(['[stage4b] loss SLICE (fixed nuisance, not a profile): %d ', ...
+        'parameters, %d points each (loss_opt=%.4g)\n'], numel(names), nG, L0);
 
     long_lines = {'parameter,value,loss'};
-    summ_lines = {'parameter,theta_hat,loss_opt,delta_lo,delta_hi,verdict'};
+    summ_lines = {'parameter,theta_hat,loss_opt,delta_lo,delta_hi,slice_shape'};
     for k = 1:numel(names)
         nm = names{k};
         j = find(strcmp(priors.names, nm), 1);
@@ -67,7 +75,7 @@ function prof = stage4b_profile_likelihood(refined, setB, resetB, cfg, outdir)
         d_hi = L(end) - L0;
         if min(L) < L0 - 1e-6
             % The 1-D scan found a lower loss than the reported optimum: the
-            % local refinement did not converge. The profile verdict for this
+            % local refinement did not converge. The slice shape for this
             % parameter is unreliable; refit with a larger refine budget.
             warning('stage4b:notConverged', ...
                 '%s: scan found loss %.6g < optimum %.6g; refine not converged', ...
@@ -75,30 +83,30 @@ function prof = stage4b_profile_likelihood(refined, setB, resetB, cfg, outdir)
         end
         d_min = min(d_lo, d_hi);
         if d_min < 1
-            verdict = 'flat_non_identifiable';
+            shape = 'flat';
         elseif d_min < 4
-            verdict = 'weakly_identifiable';
+            shape = 'moderate';
         else
-            verdict = 'identifiable';
+            shape = 'steep';
         end
-        fprintf('[stage4b] %-12s dlo=%.3g dhi=%.3g -> %s\n', nm, d_lo, d_hi, verdict);
+        fprintf('[stage4b] %-12s dlo=%.3g dhi=%.3g -> %s slice\n', nm, d_lo, d_hi, shape);
         prof.names{end + 1} = nm;
         prof.theta_hat(end + 1) = th;
         prof.delta_lo(end + 1) = d_lo;
         prof.delta_hi(end + 1) = d_hi;
-        prof.verdict{end + 1} = verdict;
+        prof.verdict{end + 1} = shape;
         prof.grids{end + 1} = g;
         prof.losses{end + 1} = L;
         for m = 1:nG
             long_lines{end + 1} = sprintf('%s,%.8g,%.8g', nm, g(m), L(m)); %#ok<AGROW>
         end
         summ_lines{end + 1} = sprintf('%s,%.8g,%.8g,%.6g,%.6g,%s', ...
-            nm, th, L0, d_lo, d_hi, verdict); %#ok<AGROW>
+            nm, th, L0, d_lo, d_hi, shape); %#ok<AGROW>
     end
     prof.loss_opt = L0;
 
-    write_lines(fullfile(outdir, 'profile_likelihood.csv'), long_lines);
-    write_lines(fullfile(outdir, 'profile_summary.csv'), summ_lines);
+    write_lines(fullfile(outdir, 'loss_slice.csv'), long_lines);
+    write_lines(fullfile(outdir, 'loss_slice_summary.csv'), summ_lines);
 end
 
 function write_lines(path, lines)

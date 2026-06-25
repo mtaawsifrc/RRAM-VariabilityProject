@@ -79,7 +79,7 @@ def main() -> int:
 
     overrides = {
         "run_fisher": 0,
-        "run_profile": 0,
+        "run_slice": 0,
         "run_bootstrap": 1,
         "run_loco": 1 if args.with_loco else 0,
         "bootstrap_n": args.bootstrap_n,

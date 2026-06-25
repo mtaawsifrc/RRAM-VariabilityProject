@@ -57,24 +57,28 @@ Bayesian optimization, and then reports two checks with every extracted
 parameter set: an out-of-sample cycle test and a cycle-bootstrap
 identifiability audit.  The fitted models reproduce the measured butterfly
 curves with mean log-current RMSE of 0.530 decades for SET and 0.761 decades
-for RESET.  More importantly, a model fitted to one representative cycle
-predicts all other measured cycles of the same device with essentially the
-same error (held-out medians of 0.542 and 0.800 decades for SET and RESET).
-This indicates that the fit represents the device behavior, not only the
-chosen target trace.  Bootstrap resampling shows that the branch voltage
-scales are repeatable (CV~$\approx$~0.28) and carry deposition trends, while
-series resistance and velocity prefactors are not repeatable enough for
-physical interpretation (CV~$>$~1).  The same regime analysis shows that the
-post-RESET high-resistance state is Schottky-dominant in 92.5--100\% of
-cycles, with physically admissible dynamic permittivities of 4.7--32.  Thus,
-for these TaO$_x$ devices, reliable compact-model extraction requires three
-items to be reported together: fit quality, cycle-to-cycle generalization,
-and which extracted parameters are actually identifiable.
+for RESET.  A model fitted to one representative cycle predicts other cycles of
+the same device (held-out medians 0.542/0.800 decades) and, in a split-safe
+population test over 545 device records ($\sim$10{,}900 cycles) with no device
+leakage, also predicts cycles of entirely unseen devices with only a modest
+additional gap (unseen-device medians 0.580/0.861 decades).  Bootstrap
+resampling shows the branch voltage scales are repeatable (CV~$\approx$~0.28)
+and that only $V_{0,\mathrm{SET}}$ survives a formal deposition-DOE significance
+test, while series resistance (100\% bound-pinned) and velocity prefactors are
+not repeatable enough for physical interpretation; the Fisher matrix is rank
+deficient, consistent with this.  A mechanism-aware diagnostic on a common
+log-current response finds an ohmic LRS and a barrier-limited (Schottky-like)
+HRS, but with frequent ambiguity that precludes claiming a confirmed microscopic
+mechanism from room-temperature DC data.  Thus, for these TaO$_x$ devices,
+reliable compact-model extraction requires reporting fit quality, population-level
+generalization, parameter identifiability, and conduction-regime validity
+together.
 \end{abstract}
 
 \begin{IEEEkeywords}
-RRAM, TaO$_x$, compact model, Stanford model, identifiability, Bayesian
-optimization, out-of-sample validation, conduction mechanisms, variability.
+RRAM, TaO$_x$, compact model, Stanford model, identifiability, sloppiness,
+Bayesian optimization, population validation, device-to-device variability,
+conduction mechanisms.
 \end{IEEEkeywords}
 
 \IEEEpeerreviewmaketitle
@@ -134,31 +138,36 @@ cycle-level bootstrap resampling of the measured data.
 
 The contributions are:
 \begin{enumerate}
-  \item \emph{A device-first fitting flow.}  Each resistance-state segment is
-        classified as ohmic, Poole--Frenkel (PF), Schottky, or
-        Fowler--Nordheim (FN) before compact-model fitting.  The classification
-        is used both to set physically informed prior windows and to flag
-        portions of the data that the released Stanford current law cannot
-        directly represent.
-  \item \emph{A direct cycle-to-cycle generalization test.}  The model is
-        fitted to one representative measured cycle, then scored against every
-        other measured cycle from the same device.  The held-out RMSE matches
-        the fitted-cycle RMSE to within 0.04 decades on average, showing that
-        the extracted parameter set describes the device population rather
-        than memorizing one trace.
+  \item \emph{A device-first fitting flow with a corrected mechanism
+        diagnostic.}  Each resistance-state segment is classified as
+        ohmic/power-law, Poole--Frenkel (PF), Schottky, or Fowler--Nordheim
+        (FN) by comparing all candidates on a \emph{common} log-current
+        response (so their information criteria are comparable), with explicit
+        ambiguity labels.  The classification sets physically informed prior
+        windows and flags data the released Stanford current law cannot
+        represent; it is a model-adequacy diagnostic, not proof of a microscopic
+        mechanism.
+  \item \emph{Split-safe population validation.}  Beyond a same-device cycle
+        hold-out, the medoid-fitted model is scored against cycles of entirely
+        unseen devices using deterministic, leakage-free device-level splits
+        over the full population (545 device records, $\sim$10{,}900 cycles).
+        The unseen-device median RMSE exceeds the same-device value by only
+        $\sim$0.04--0.06 decades, evidence that the fit describes the device
+        population rather than one trace.
   \item \emph{A practical identifiability audit.}  We use 200 cycle-bootstrap
-        refits per condition to determine which parameters are repeatable
-        under measured cycle variability.  Fisher sensitivity is reported as a
-        supporting local diagnostic, not as the final basis for physical
-        interpretation.
-  \item \emph{Deposition-resolved interpretation.}  Across the twelve
-        deposition conditions, only the repeatable branch voltage scales carry
-        reliable process trends.  Series resistance, velocity prefactors, and
-        several gap-related coordinates can fit the data but are not stable
-        enough to be treated as deposition-dependent physical outputs.  The
-        high-resistance state after RESET is also Schottky-limited in nearly
-        all cycles, identifying a device-physics mechanism outside the
-        Stanford bulk current law.
+        refits per condition (with consistent point/interval reporting and
+        bound-pinning fractions) to determine which parameters are repeatable.
+        Fisher sensitivity is computed correctly in log coordinates and reported
+        as a rank-deficient stiff/sloppy-combination diagnostic, not as a
+        per-parameter certification.
+  \item \emph{Deposition-resolved interpretation with formal statistics.}  A
+        coded response surface with a center-point lack-of-fit test finds that
+        only $V_{0,\mathrm{SET}}$ carries a significant, repeatable process
+        trend; series resistance, velocity prefactors, and several gap-related
+        coordinates fit the data but are not deposition-interpretable.  The
+        high-resistance state after RESET is barrier-limited (Schottky-like
+        where credible), a device-physics mechanism outside the Stanford bulk
+        current law.
 \end{enumerate}
 
 Section~\ref{sec:devices} describes the devices and measurement design;
@@ -264,25 +273,28 @@ Before fitting the compact model, we ask what type of conduction is visible
 in each measured resistance-state segment.  The medoid SET and RESET
 branches are split at their voltage extrema into pre- and post-switching
 segments, corresponding to the HRS and LRS sides of each sweep.  Within
-sliding voltage windows, four standard transport linearizations are tested:
+sliding voltage windows, four standard transport models are fit.  Crucially,
+all four are fit to the \emph{same} response, the common log-current
+$y=\log_{10}(|I|+I_{\mathrm{floor}})$ on the same point set, so that their
+information criteria are directly comparable:
 \begin{align}
-  \text{ohmic:} &&
-  \ln I &= m\ln V + b, &
-  0.8 \le m \le 1.2, \label{eq:ohmic}\\
-  \text{PF:} &&
-  \ln(I/V) &= s_{\mathrm{PF}}\sqrt{V}+b, &
-  s_{\mathrm{PF}}>0, \label{eq:pf}\\
-  \text{Schottky:} &&
-  \ln I &= s_{\mathrm{S}}\sqrt{V}+b, &
-  s_{\mathrm{S}}>0, \label{eq:schottky}\\
-  \text{FN:} &&
-  \ln(I/V^2) &= s_{\mathrm{FN}}/V+b, &
-  s_{\mathrm{FN}}<0. \label{eq:fn}
+  \text{ohmic/power:} && y &= a + n\log_{10}|V|, & n>0, \label{eq:ohmic}\\
+  \text{Schottky:}    && y &= a + b\sqrt{|V|}, & b>0, \label{eq:schottky}\\
+  \text{PF:}          && y &= a + \log_{10}|V| + b\sqrt{|V|}, & b>0, \label{eq:pf}\\
+  \text{FN:}          && y &= a + 2\log_{10}|V| - b/|V|, & b>0. \label{eq:fn}
 \end{align}
-PF and Schottky plots can both look nearly linear over a limited voltage
-range \cite{chiu2014}.  To avoid assigning a mechanism only because a line
-fits well, the fitted $\sqrt{V}$ slope $s$ is first converted into an
-effective dynamic relative permittivity,
+This is a deliberate correction: comparing candidates by an information
+criterion computed on \emph{different} transformed responses
+($\ln I$, $\ln(I/V)$, $\ln(I/V^2)$) is not a valid model comparison, because
+those residual likelihoods are not on a common scale.  Each candidate is fit
+by least squares on $y$ and scored by AIC/BIC.  The window label is the
+lowest-BIC \emph{feasible} candidate; we also record $\Delta\mathrm{BIC}$ to
+the second-best mechanism and flag the window \texttt{ambiguous} when
+$\Delta\mathrm{BIC}<6$, because PF and Schottky linearizations are nearly
+collinear over a limited voltage range \cite{chiu2014} and room-temperature
+DC data often cannot separate them.
+
+The implied dynamic relative permittivity,
 \begin{equation}
   \varepsilon_r^{\mathrm{dyn}}
   =
@@ -294,16 +306,20 @@ effective dynamic relative permittivity,
   \end{cases}
   \label{eq:eps-dyn}
 \end{equation}
-and must fall in the deliberately broad bracket $[1,60]$ for
-$t_{\mathrm{ox}}=\SI{7}{\nano\meter}$ and $T=\SI{300}{\kelvin}$.  Candidates
-that pass this physical check are compared using the Bayesian information
-criterion, and adjacent windows with the same label are merged and refit.
+(with $s$ the natural-log $\sqrt{V}$ slope) is used only as a plausibility
+\emph{filter}: an interface candidate whose $\varepsilon_r^{\mathrm{dyn}}$
+falls outside the broad bracket $[1,60]$ for $t_{\mathrm{ox}}=\SI{7}{\nano\meter}$,
+$T=\SI{300}{\kelvin}$ is rejected as nonphysical (e.g.\ a PF form that merely
+mimics an ohmic branch and implies $\varepsilon_r\sim10^5$).  The permittivity
+is never used to \emph{confirm} a mechanism, so it cannot circularly prove the
+label it carries.  Adjacent windows with the same label are merged and refit.
 Ohmic and PF windows are marked \texttt{stanford\_valid}, because they are the
-closest to what the released Stanford current law can emulate.  Schottky, FN,
-and unclassified windows are still reported, but they are treated as regions
-where the compact model may have a structural mismatch.  The same
-classification is applied to every measured cycle so that mechanism
-assignments can be checked for cycle-to-cycle stability.
+closest to what the released Stanford current law can emulate; Schottky, FN,
+and unclassified windows are reported as regions of possible structural
+mismatch.  The same classification is applied to every measured cycle so that
+mechanism assignments, and their ambiguity, can be checked for cycle-to-cycle
+stability.  We therefore treat the labels as a mechanism-aware
+model-adequacy diagnostic, not as proof of a microscopic transport mechanism.
 
 \subsection{Compact Model and HSPICE Forward Map}
 \label{sec:model}
@@ -378,9 +394,15 @@ combines branch errors, switching-threshold error, and a soft prior penalty:
 where each branch loss is a weighted mean of squared residuals
 $r_i=\bigl(\log_{10}|I_i^{\mathrm{sim}}|-\log_{10}|I_i^{\mathrm{meas}}|
 \bigr)/\sigma_i^{\log I}$.  The term $L_V$ penalizes mismatch in the
-switching thresholds, identified from extrema of $d\log_{10}|I|/dV$, and
-$L_{\mathrm{prior}}$ penalizes excursions far from the prior in standardized
-coordinates.  Points that are only covered by Schottky or FN windows receive
+switching thresholds, identified from extrema of $d\log_{10}|I|/dV$.  The
+current is smoothed before differentiation and a small voltage margin is
+excluded at both sweep boundaries, so the detector cannot lock onto the
+$0\,\mathrm{V}$ (or end-of-sweep) boundary as a spurious switching point; when
+no reliable interior extremum exists the threshold metric is marked
+unavailable and dropped rather than being pinned to a boundary voltage.  This
+removes a boundary artifact that previously let the threshold term dominate the
+loss in isolated conditions.  $L_{\mathrm{prior}}$ penalizes excursions far
+from the prior in standardized coordinates.  Points that are only covered by Schottky or FN windows receive
 weight $w_{\mathrm{nb}}=0.3$, while ohmic, PF, and unclassified points receive
 full weight.  This prevents interface-limited HRS conduction, which is not in
 the Stanford current law, from dominating the fitted bulk-model parameters.
@@ -415,15 +437,23 @@ substantially when the measured cycles are resampled, we do not treat it as
 operationally identifiable.
 
 We also compute a finite-difference Fisher matrix
-$F=\widetilde S^{\mathsf T}\widetilde S$ in log-parameter coordinates, with
-effective uncertainties
-$\sigma_j^{\mathrm{eff}}=\sqrt{[F^+]_{jj}}$ from the pseudo-inverse
-\cite{raue2009,transtrum2015sloppiness}.  In this manuscript the Fisher
-calculation is used as a local sensitivity check, not as the final
-identifiability decision.  The reason is practical: the Fisher matrices are
-extremely ill-conditioned for this model and data set, so they are reliable
-for showing that the parameterization is broadly underconstrained but not for
-certifying individual physical parameters by themselves.
+$F=\widetilde S^{\mathsf T}\widetilde S$ in log-parameter coordinates
+$z_j=\log\theta_j$.  Because the weighted sensitivities
+$\widetilde S_{ij}=\partial\log_{10}|I_i|/\partial z_j$ are already in
+log-parameter coordinates, the diagonal of the (truncated) pseudo-inverse,
+$\sigma_{\log\theta_j}=\sqrt{[F^+]_{jj}}$, \emph{is} the relative (multiplicative)
+parameter uncertainty; it is not divided again by $\theta_j$ (an earlier
+dimensional error).  We obtain $F^+$ and the spectrum by singular-value
+decomposition of $\widetilde S$ and report the numerical \emph{rank}: singular
+values below $10^{-8}$ of the largest (eigenvalues below $\sim10^{-16}$) are
+numerical noise at double precision, not measurable directions
+\cite{raue2009,transtrum2015sloppiness}.  Reporting a rank, rather than an
+exact eigenvalue span, is the honest summary: across conditions the active
+Fisher matrix has numerical rank of roughly $8$--$14$ of $16$, i.e.\ it is rank
+deficient with a few stiff directions and many sloppy ones.  The Fisher result
+is therefore used to identify stiff/sloppy \emph{combinations}, not to certify
+individual physical parameters; the cycle bootstrap is the primary
+identifiability evidence.
 
 \subsection{Cycle-to-Cycle Variability}
 \label{sec:boot}
@@ -455,46 +485,48 @@ not give the proposed method an automatic scoring advantage.
 \label{sec:results}
 % =========================================================================
 
-\subsection{Conduction Regimes: Ohmic LRS, Schottky-Limited HRS}
+\subsection{Conduction Regimes: Ohmic LRS, Barrier-Limited HRS}
 \label{sec:res-regimes}
 
-The first result is a device-physics result, not an optimization result: the
-LRS behaves as an ohmic filament branch, while the post-RESET HRS is
-interface-limited for essentially the entire data set.  Figure~\ref{fig:regimes}
-shows the classified regime map for the representative S1 device, and
-Fig.~\ref{fig:mechanism-map} summarizes the dominant cycle-level assignment
-for all twelve conditions.  The post-SET LRS is ohmic-dominant for every
-condition, with assignment stability from 66.3\% (S2) to 100\%.  The
-post-RESET HRS is Schottky-dominant for every condition in 92.5--100\% of
-cycles.  The extracted Schottky slopes imply
-$\varepsilon_r^{\mathrm{dyn}}=4.72$--33.96 for
-$t_{\mathrm{ox}}=\SI{7}{\nano\meter}$, which lies inside the broad physical
-admissibility interval used by the classifier.
+The first result is a device-physics result, not an optimization result, and
+under the corrected common-response classifier it is appropriately cautious.
+Figure~\ref{fig:regimes} shows the classified regime map for the
+representative S1 device, and Fig.~\ref{fig:mechanism-map} summarizes the
+dominant cycle-level assignment for all twelve conditions.  The post-SET LRS is
+ohmic-dominant for every condition (stability $84$--$100\%$), as expected for a
+conductive filament.  The high-resistance segments are barrier-limited but the
+data do not cleanly pick a single interface mechanism: the pre-SET HRS reads
+Schottky-dominant in nine of twelve conditions ($60$--$100\%$, ohmic-dominant
+in the other three), whereas over the \emph{full} post-RESET HRS window a
+near-ohmic power-law trend is the dominant cycle-level label in eight
+conditions and a Schottky-like label in four.  A Schottky signature does appear
+robustly in the higher-voltage portion of the post-RESET HRS, where the implied
+$\varepsilon_r^{\mathrm{dyn}}$ is physically admissible ($\sim40$), but $33$ of
+$141$ classified windows are flagged \texttt{ambiguous}
+($\Delta\mathrm{BIC}<6$).  We therefore describe the HRS as
+\emph{consistent with barrier-limited (Schottky-like) conduction} rather than
+as confirmed Schottky, and treat the labels as a model-adequacy diagnostic.
+The pre-RESET LRS is the least stable segment and is often unclassified,
+consistent with the device moving from a conductive-filament branch toward
+rupture.
 
-The pre-SET HRS is also Schottky-dominant in ten conditions, with stability
-from 60.4\% (S2) to 100\% (S8).  S5 and S7 are exceptions and are
-ohmic-dominant at 80\% and 75\%, respectively.  The pre-RESET LRS is the
-least stable segment and is often unclassified, consistent with the device
-moving from a conductive-filament branch toward rupture.  PF windows appear
-only in the representative pre-SET maps of S6 and S11; PF is not the dominant
-cycle-level mechanism for any state or condition.
-
-This matters directly for model extraction.  The Stanford model can reproduce
-the ohmic/LRS branch and switching behavior reasonably well, but its released
-current law does not include an explicit Schottky barrier current.  Therefore,
-the PF-to-($\gamma_0,E_a$) prior path is used only where PF evidence is
-present, and Schottky/FN HRS portions are down-weighted during fitting rather
-than being allowed to force bulk-model parameters into compensating for
-interface physics.
+This matters directly for model extraction.  The Stanford model reproduces the
+ohmic/LRS branch and switching behavior reasonably well, but its released
+current law does not include an explicit interface-barrier current.  Schottky/FN
+HRS windows are therefore down-weighted during fitting rather than being allowed
+to force bulk-model parameters into compensating for interface physics, and the
+PF-to-($\gamma_0,E_a$) prior path is used only where credible PF evidence is
+present.
 
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{step02_S1/S1_B6-01-4um-12_regime_overview.png}
 \caption{Conduction-regime classification of the four resistance-state
-segments of the S1 representative cycle.  LRS segments are ohmic
-($R^2\ge0.98$); HRS segments are dominated by Schottky emission, with a
-Fowler--Nordheim window near the SET transition.  No Poole--Frenkel window
-is admitted by the $\varepsilon_r^{\mathrm{dyn}}$ test.}
+segments of the S1 representative cycle, using the common-response fit.  LRS
+segments are ohmic ($R^2\ge0.98$); HRS segments are barrier-limited, with a
+Schottky-like window where the implied permittivity is admissible and other
+windows that are near-ohmic or flagged ambiguous.  PF candidates with
+nonphysical $\varepsilon_r^{\mathrm{dyn}}$ are rejected.}
 \label{fig:regimes}
 \end{figure}
 
@@ -503,8 +535,10 @@ is admitted by the $\varepsilon_r^{\mathrm{dyn}}$ test.}
 \includegraphics[width=0.98\textwidth]{results/variability/mechanism_map.pdf}
 \caption{Dominant conduction mechanism and cycle-to-cycle assignment
 stability for each resistance-state segment and deposition condition.  The
-post-SET LRS is consistently ohmic, whereas the post-RESET HRS is
-Schottky-dominant for all twelve conditions.}
+post-SET LRS is consistently ohmic; the high-resistance segments are
+barrier-limited but not cleanly separable (the post-RESET HRS full-window label
+is near-ohmic in most conditions and Schottky-like in others, with a robust
+Schottky signature at higher voltage).}
 \label{fig:mechanism-map}
 \end{figure*}
 
@@ -572,11 +606,18 @@ held-out cycle population.
 Figure~\ref{fig:heldout} shows the resulting per-cycle RMSE distributions.
 Averaged over all conditions, the held-out median RMSE is 0.542 decades for
 SET and 0.800 decades for RESET, compared with in-sample means of 0.530 and
-0.761 decades.  The average generalization gap is therefore only 0.012
-decades for SET and 0.039 decades for RESET.  For every condition, the
-in-sample value falls inside the held-out interquartile range.  This is the
-key evidence that the fitted compact model represents the measured device
-population rather than memorizing one selected trace.
+0.761 decades, so the \emph{average} generalization gap is small (0.012
+decades for SET, 0.039 decades for RESET).  We deliberately do not claim that
+the in-sample value lies within the held-out interquartile range for every
+condition: the in-sample RMSE falls inside the held-out IQR in about half of
+the SET conditions and a quarter of the RESET conditions, because the
+cycle-to-cycle spread is narrow and the medoid is not always central.  The
+clearest outlier is S1 RESET, whose held-out median (0.999) is $0.31$ decades
+($+45\%$) above its in-sample value (0.689) with only $18\%$ of cycles inside
+the IQR; we flag it explicitly rather than averaging it away.  The aggregate
+small gap shows that the medoid fit is not memorizing one trace, but the
+per-condition spread is the more honest statement, and the stronger
+population-level test is given in Section~\ref{sec:res-population}.
 
 \begin{figure}[!t]
 \centering
@@ -584,9 +625,10 @@ population rather than memorizing one selected trace.
 \caption{Out-of-sample fit quality.  Box plots: distribution of
 $\log_{10}|I|$ RMSE when the model fitted to the medoid cycle is scored
 against every other measured cycle of the device (whiskers exclude outliers).
-Stars mark the in-sample (medoid) RMSE.  Held-out and in-sample errors are
-statistically indistinguishable, evidencing generalization rather than
-overfitting.}
+Stars mark the in-sample (medoid) RMSE.  The held-out median tracks the
+in-sample error closely on average; per-condition agreement varies (S1 RESET
+is a flagged outlier), so we report the distribution rather than claiming the
+two are statistically indistinguishable.}
 \label{fig:heldout}
 \end{figure}
 
@@ -609,6 +651,48 @@ measured spread except at the SET transition and the HRS approach.}
 \label{fig:overlay}
 \end{figure}
 
+\subsection{Unseen-Device Population Validation}
+\label{sec:res-population}
+
+The cycle hold-out above still scores other cycles of the \emph{same} fitted
+device, so it mainly measures cycle-to-cycle reproducibility.  The stronger
+question for a process study is whether the medoid-fitted model describes
+devices it never saw.  We therefore build a population index over all available
+devices and cycles ($545$ device records across the DOE, $10{,}871$ accepted
+cycles); the per-condition fit uses about one device each ($\approx4\%$ of
+cycles for the fitted devices, a single medoid cycle for the fit itself).  For
+each condition we form deterministic, seeded device-level train/validation/test
+splits that keep every cycle of a device in one split, with the fitted device
+forced into the training split.  The medoid-fitted model is then scored against
+every good cycle of the held-out \emph{test} devices, aligned to the simulated
+curve by half-sweep voltage.  No device appears in more than one split, the
+fitted device never enters validation or test, and every condition contributes
+at least one unseen test device (3--21 per condition; $2{,}180$ unseen SET and
+$2{,}180$ unseen RESET cycles in total).
+
+Across the population, the unseen-device median RMSE is $0.580$ decades for SET
+and $0.861$ decades for RESET, versus the same-device held-out medians of
+$0.542$ and $0.800$ decades.  The additional degradation when moving from
+held-out cycles of the fitted device to entirely unseen devices is therefore
+modest on average ($+0.038$ decades SET, $+0.061$ decades RESET), which is the
+genuine population-scale evidence the cycle hold-out cannot provide.  The
+spread is real and reported per condition: some conditions generalize to new
+devices essentially for free (S1, S2, S7, S11), while others degrade more
+(S4 and S5 RESET by $\sim0.17$ decades, and S10 by $\sim0.35$ decades on only
+three test devices).  We report (a) same-device cycle hold-out and (b)
+unseen-device validation as two distinct numbers and never conflate them.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{results/population/unseen_device_validation.pdf}
+\caption{Unseen-device validation.  Box plots: per-cycle $\log_{10}|I|$ RMSE
+when the medoid-fitted model is scored against cycles of held-out
+\emph{devices} (never used for selection or fitting).  Stars mark the
+same-device held-out median for comparison.  The model generalizes to unseen
+devices with only a modest median increase over same-device cycle hold-out.}
+\label{fig:population}
+\end{figure}
+
 \subsection{Identifiability: What DC Data Actually Constrain}
 \label{sec:res-ident}
 
@@ -629,20 +713,36 @@ scale $I_0$ and activation energies also vary substantially.  These
 parameters can help the optimizer fit a trace, but the DC data do not recover
 them repeatably enough for process interpretation.
 
+To keep the reported intervals internally consistent, the plotted point
+estimate is the bootstrap median and the interval is its $2.5$/$97.5$
+percentile, so the estimate is bracketed by its own interval by construction;
+the full-budget refined optimum is retained separately and lies outside the
+percentile interval for $7$ of $192$ parameter--conditions, which we report
+rather than hide.  We also report the fraction of bootstrap draws pinned to the
+prior box: $R_s$ is pinned to a bound in $100\%$ of draws and the velocity
+prefactors in about $20$--$24\%$, so the apparent one-to-two-decade $R_s$
+interval is a box artifact, not a data statement.  Bound-pinned parameters are
+treated as weakly data-supported throughout.
+
 The Fisher analysis supports the same broad conclusion but should be read
-with caution.  Across conditions, the Fisher condition numbers range from
-$6.2\times10^{18}$ to $1.6\times10^{66}$, far beyond what can support precise
-per-parameter certification in double precision.  Figure~\ref{fig:ident}
-therefore serves as a local sensitivity map rather than the main
-identifiability decision.  Where Fisher and bootstrap agree, the conclusion
-is strong: branch voltage scales and switching-field combinations are better
-determined than $I_0$, $g_0$, activation energies, velocity prefactors, and
-gap-geometry parameters.  Where they disagree, the bootstrap is more
-important for this device study.  The best example is $R_s$, which can look
-locally well determined at one optimum yet varies strongly under cycle
-resampling.  A subset of profile-likelihood scans (S1--S4) also returns
-``flat/non-identifiable'' behavior for nearly all coordinates, consistent
-with the bootstrap reading.
+with caution.  Computed correctly in log-parameter coordinates and reduced by
+SVD, the active Fisher matrix is \emph{rank deficient}: its numerical rank is
+roughly $8$--$14$ of the $16$ active directions, so a few stiff directions are
+informative and the rest are sloppy.  We deliberately report this rank, and a
+resolvable dynamic range of order $10^{7}$--$10^{14}$, rather than an exact
+``orders of magnitude'' eigenvalue span, because eigenvalues below
+$\sim10^{-16}$ of the largest are double-precision noise, not measurable
+information.  Figure~\ref{fig:ident} therefore serves as a stiff/sloppy
+\emph{combination} map rather than a per-parameter certification.  Where Fisher
+and bootstrap agree, the conclusion is strong: branch voltage scales and
+switching-field combinations are better determined than $I_0$, $g_0$,
+activation energies, velocity prefactors, and gap-geometry parameters.  Where
+they disagree, the bootstrap is more important for this device study.  The best
+example is $R_s$, which can look locally well determined at one optimum yet
+varies strongly under cycle resampling.  A subset of 1-D loss-slice scans
+(S1--S4; these hold the other parameters fixed and are slices of the loss
+surface, not true profile likelihoods) is mostly flat across coordinates,
+consistent with the bootstrap reading.
 
 The device-level interpretation is therefore narrow but useful: DC butterfly
 data constrain effective branch scales and switching-field combinations more
@@ -662,12 +762,12 @@ the least stable.  This bootstrap CV is our primary identifiability evidence.}
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{results/publication/identifiability_heatmap.pdf}
-\caption{Local Fisher relative uncertainty $\sigma_\theta/|\theta|$ (log color
-scale) for the 16 active parameters across the twelve conditions, shown as a
-corroborating cross-check.  The extremely large condition numbers
-($10^{18}$--$10^{66}$) preclude certifying individual coordinates from this
-diagnostic alone; conclusions are drawn only where it agrees with
-Fig.~\ref{fig:param-cv}.}
+\caption{Fisher relative (log-coordinate) uncertainty $\sigma_{\log\theta}$
+(log color scale) for the 16 active parameters across the twelve conditions,
+shown as a corroborating cross-check.  The Fisher matrix is rank deficient
+(numerical rank $\approx8$--$14/16$), so individual coordinates are not
+certified from this diagnostic alone; conclusions are drawn only where it
+agrees with Fig.~\ref{fig:param-cv}.}
 \label{fig:ident}
 \end{figure}
 
@@ -716,12 +816,18 @@ identifiability result.  A response surface should only be built from
 parameters that are repeatably extracted; otherwise the apparent process
 trend may simply be fit ambiguity.  Figure~\ref{fig:trends} compares these
 two cases.  The branch voltage scales $V_{0,\mathrm{SET}}$ and
-$V_{0,\mathrm{RESET}}$ have relatively tight bootstrap confidence intervals
-and vary systematically with deposition.  For example,
-$V_{0,\mathrm{RESET}}$ tends to be lower at the 35\% oxygen, low-power
-corners (S3 and S4) than at the oxygen-poor corners (S1 and S2).  These
-quantities can therefore support deposition-resolved compact-model
-interpretation.
+$V_{0,\mathrm{RESET}}$ have relatively tight bootstrap confidence intervals.
+To avoid an eyeballed trend, we fit a coded face-centered response surface to
+the bootstrap-median values, using the replicated center points (S9--S12) for a
+pure-error lack-of-fit test.  Only $V_{0,\mathrm{SET}}$ yields a significant
+process dependence (oxygen and power terms, $R^2\approx0.75$); $V_{0,\mathrm{RESET}}$
+($R^2\approx0.61$) and $\log_{10}R_s$ ($R^2\approx0.24$) have no individually
+significant terms.  We state this conservatively: the two $V_{0,\mathrm{SET}}$
+effects are nominal at the $p<0.05$ level on twelve points and would not survive
+a strict multiplicity correction, and the lack-of-fit test merely \emph{fails to
+detect} lack of fit rather than proving its absence.  $V_{0,\mathrm{SET}}$ is
+thus the one quantity that can tentatively support deposition-resolved
+interpretation from these DC sweeps.
 
 Series resistance gives the opposite lesson.  It is often locally sensitive
 in the Fisher calculation, but its bootstrap 95\% intervals span one to two
@@ -744,24 +850,27 @@ being locally Fisher-identifiable.}
 
 The regime classifier also provides a process-facing HRS observable that is
 not a Stanford-model fitting parameter.  Figure~\ref{fig:schottky} plots the
-dynamic relative permittivity inferred from the post-RESET Schottky window.
-All twelve conditions fall in the physically admissible range of 4.7--32,
-supporting the conclusion that the post-RESET HRS is interface-limited across
-the entire DOE.  The approximately three-fold scatter among the replicated
-center-point devices (S9--S12) further suggests that the interface response
-has its own device-to-device and cycle-to-cycle variability, not just a
-single-valued dependence on the nominal deposition setpoint.  This is an
+cycle-median dynamic relative permittivity inferred from the post-RESET HRS
+where a credible Schottky-like window is present.  In the ten conditions that
+show such a window, the cycle-median $\varepsilon_r^{\mathrm{dyn}}$ falls in the
+physically admissible range $5.3$--$23.1$, with cycle-bootstrap intervals; this
+supports barrier-limited HRS conduction \emph{where it is observed}, but is a
+conditional fingerprint rather than a universal Schottky claim, because the
+full-window cycle-level label is near-ohmic in most conditions.  The roughly
+three-fold scatter among the replicated center-point devices (S9--S12) suggests
+the interface response has its own device-to-device and cycle-to-cycle
+variability, not a single-valued dependence on the nominal setpoint.  This is an
 automated, quantitative extension of mechanism analysis that was previously
 performed manually \cite{chowdhury2025mwscas}.
 
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{results/paper_alt/hrs_schottky_trend.pdf}
-\caption{Dynamic relative permittivity inferred from the post-RESET HRS
-Schottky window for all twelve conditions, versus oxygen (left) and power
-(right).  Shaded band: admissibility interval $[1,60]$.  All conditions are
-physically admissible, corroborating interface-limited HRS conduction
-device-wide.}
+\caption{Cycle-median dynamic relative permittivity inferred from the
+post-RESET HRS Schottky-like window (the ten conditions in which a credible
+window is present), versus oxygen (left) and power (right), with cycle-bootstrap
+intervals.  Shaded band: admissibility interval $[1,60]$.  Admissible values
+support barrier-limited HRS conduction where such a window is observed.}
 \label{fig:schottky}
 \end{figure}
 
@@ -775,9 +884,21 @@ device-wide.}
 For circuit users, the result is encouraging but bounded.  The calibrated
 Stanford parameter files are useful behavioral descriptions for the measured
 DC protocol: a fit obtained from one representative cycle predicts the other
-cycles of the same device with essentially the same error.  This supports
-their use in circuit-level studies that need a compact description of the
-observed switching loops.
+cycles of the same device, and cycles of unseen devices, with only a modest
+increase in error (Section~\ref{sec:res-population}).  This supports their use
+in circuit-level studies that need a compact description of the observed
+switching loops.  We frame the contribution honestly as
+\emph{polarity-conditioned calibration and identifiability analysis of a
+Stanford-family compact model across a deposition DOE}, not as a single
+unmodified drop-in model: SET and RESET use branch-conditioned values of the
+polarity-sensitive parameters ($V_0$, $E_a$, $F_{\min}$, $\nu_0$, $g_{\max}$,
+$g_{\mathrm{ini}}$), so the released file is not yet one continuous-state
+instance that reproduces alternating SET/RESET operation unchanged.  A
+single-instance polarity-extended or hybrid barrier model is future work.
+Likewise, the compliance limit is applied by post-processing the simulated
+current, so the internal state did not evolve under physical current limiting;
+the files should be read as behavioral DC descriptions, not as SMU-limited
+device state trajectories.
 
 For device and fabrication interpretation, the message is more selective.
 Only repeatable parameter combinations should be compared across deposition
@@ -791,13 +912,14 @@ discussion should be based on the identifiable subset.
 \subsection{Model Adequacy for TaO$_x$}
 
 The regime analysis also explains why RESET remains harder to fit than SET.
-The post-RESET HRS is Schottky-dominant in nearly all cycles, while the
-released Stanford model uses a single bulk-like $\sinh$ current law.  The
-remaining RESET error is therefore a model-adequacy issue, not simply an
-optimizer issue.  This interpretation is supported by the ablation study,
-where the optimized variants reach similar unweighted RMSE, and by the
-held-out test, where RESET error is elevated both in-sample and out of
-sample.
+The post-RESET HRS is barrier-limited (Schottky-like where a credible window is
+present), while the released Stanford model uses a single bulk-like $\sinh$
+current law.  The remaining RESET error is therefore a model-adequacy issue,
+not simply an optimizer issue.  This interpretation is supported by the
+ablation study, where the optimized variants reach similar unweighted RMSE, by
+the held-out test, where RESET error is elevated both in-sample and out of
+sample, and by the population test, where the unseen-device RESET gap exceeds
+the SET gap.
 
 A natural next model extension would add a barrier-limited HRS branch or a
 gap-dependent barrier term \cite{chiu2014,bocquet2014,bengel2020jart}.  The
@@ -812,44 +934,69 @@ law.
 Several limitations should be kept explicit.  First, the transient replay is
 quasi-static, so kinetic parameters absorb the effective measurement time
 scale; pulsed or sweep-rate-resolved data would be needed to constrain
-kinetics more directly \cite{ielmini2016}.  Second, the bootstrap and
-out-of-sample analyses are cycle-level analyses for one selected device per
-condition.  They quantify cycle-to-cycle variability under the fitting
-protocol, not full device-to-device or wafer-level variability, although the
-replicated center points give an initial view of that spread.  Third, Fisher
-analysis is used only as a local cross-check, and profile-likelihood scans
-were completed for a subset of conditions (S1--S4); a future release should
-complete those scans for all conditions using a common optimum.  Finally, the
-reset-side $\gamma_0$ is structurally overridden under negative bias in the
-released Verilog-A model, so it is retained for compatibility but not
-physically interpreted.
+kinetics more directly \cite{ielmini2016}.  Second, the fit itself still uses
+one selected device per condition; the cycle bootstrap quantifies cycle-to-cycle
+variability for that device, and the variance decomposition from the replicated
+center points (S9--S12) shows cycle-to-cycle variation dominates device-to-device
+variation (intraclass device fraction $<0.2$ for every parameter).  The
+population validation (Section~\ref{sec:res-population}) now tests the fit
+against the broader device population, but fitting one device per condition
+rather than a hierarchical model across devices remains a limitation.  Third,
+Fisher analysis is used only as a rank-deficient cross-check, and the 1-D
+loss-slice scans were completed for a subset of conditions (S1--S4); these are
+loss slices (fixed nuisance), not true profile likelihoods, and a future release
+should run true profiles (reoptimizing nuisance parameters) at a common optimum
+for all conditions.  Finally, the reset-side $\gamma_0$ is structurally
+overridden under negative bias in the released Verilog-A model, so it is
+retained for compatibility but not physically interpreted.
+
+\subsection{Relation to Prior Work}
+
+Automated Stanford-model extraction and statistical device-to-device/cycle-to-cycle
+(D2D/C2C) calibration are by themselves established
+\cite{guan2012spice,jiang2016verification}; we therefore do not claim
+automation or bootstrap fitting as the novelty.  The contribution is the
+\emph{combination}, on a single deposition-DOE data set, of: (i) deposition-DOE-linked
+compact-model calibration; (ii) split-safe population validation across $545$
+device records and $\sim\!10^4$ cycles with no device leakage; (iii) an
+identifiability/sloppiness analysis that reports the Fisher numerical rank and
+stiff/sloppy combinations rather than raw per-parameter error bars; (iv) a
+mechanism-aware model-adequacy diagnostic using a common-response information
+criterion with explicit ambiguity labels; (v) formal DOE significance with a
+center-point lack-of-fit test on the identifiable quantities; and (vi) explicit
+reporting of bound-pinned / non-identifiable parameters.  This positions the
+work as a population-validated, identifiability-aware calibration framework
+distinct from prior single-device extraction, stochastic compact modeling, and
+ML-based extraction studies.
 
 % =========================================================================
 \section{Conclusion}
 \label{sec:conclusion}
 % =========================================================================
 
-We presented a device-guided extraction flow for the Stanford RRAM compact
-model and applied it to twelve sputter-deposited TaO$_x$ deposition
-conditions.  The fitted models reproduce the measured DC switching loops with
-mean RMSE of 0.530 decades for SET and 0.761 decades for RESET.  More
-importantly, the fits generalize across measured cycles: when a model fitted
-to one representative cycle is scored against all other cycles from the same
-device, the held-out median RMSE remains close to the in-sample value
-(0.542/0.800 decades for SET/RESET).
+We presented a device-guided, identifiability-aware extraction flow for the
+Stanford RRAM compact model and applied it to twelve sputter-deposited TaO$_x$
+deposition conditions.  The fitted models reproduce the measured DC switching
+loops with mean RMSE of 0.530 decades for SET and 0.761 decades for RESET, they
+generalize across cycles of the same device (held-out medians 0.542/0.800
+decades), and they generalize to entirely unseen devices in a split-safe
+population test (unseen-device medians 0.580/0.861 decades over $545$ device
+records, with no device leakage)---the strongest generalization evidence here.
 
 The extracted parameter table should not be interpreted uniformly.  Cycle
-bootstrap shows that branch voltage scales are repeatable and carry usable
-deposition trends, while series resistance, velocity prefactors, activation
-energies, and several gap-related parameters are not repeatable enough for
-standalone physical interpretation from these DC sweeps.  The regime analysis
-adds the corresponding device-physics reason for the residual floor: the
-post-RESET HRS is Schottky-dominant in 92.5--100\% of cycles, with admissible
-dynamic permittivities, while the released Stanford current law does not
-explicitly include that interface-limited branch.  For RRAM compact-model
-calibration, fit quality should therefore be reported together with
-cycle-level generalization, parameter identifiability, and conduction-regime
-validity.
+bootstrap shows that branch voltage scales are the repeatable quantities, with
+only $V_{0,\mathrm{SET}}$ surviving a formal DOE significance test, while series
+resistance ($100\%$ bound-pinned), velocity prefactors, activation energies, and
+several gap-related parameters are not repeatable enough for standalone physical
+interpretation from these DC sweeps; the Fisher matrix is rank deficient,
+consistent with this reading.  The mechanism-aware diagnostic adds the
+device-physics reason for the residual floor: the post-RESET HRS is
+barrier-limited (Schottky-like where a credible window appears, with admissible
+permittivity), but room-temperature DC data do not cleanly separate it from a
+near-ohmic trend, while the released Stanford current law lacks an explicit
+interface-barrier branch.  For RRAM compact-model calibration, fit quality
+should therefore be reported together with population-level generalization,
+parameter identifiability, and conduction-regime validity.
 
 % =========================================================================
 \begin{thebibliography}{99}\footnotesize

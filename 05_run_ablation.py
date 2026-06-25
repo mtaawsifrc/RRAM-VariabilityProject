@@ -37,7 +37,7 @@ VARIANTS = {
     "physics_nobo": {"defaults_only": 1, "_regime": True},  # no optimization
 }
 # Fisher not needed for the ablation comparison -> force it off for speed.
-COMMON = {"run_fisher": 0, "run_loco": 0, "run_bootstrap": 0, "run_profile": 0}
+COMMON = {"run_fisher": 0, "run_loco": 0, "run_bootstrap": 0, "run_slice": 0}
 
 
 def ensure_regime_map(rep_csv: str) -> str:

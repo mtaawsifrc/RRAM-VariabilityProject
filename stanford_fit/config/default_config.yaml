@@ -51,11 +51,14 @@ mechanism_weighting: 1
 nonbulk_weight: 0.3
 
 # --- Operational identifiability ---
-# Stage 4b profile likelihood: 1-D loss scans around the optimum; the direct
-# evidence of practical (non-)identifiability. ~2*n_profile HSPICE sims per
-# active parameter -> enable for final/publication runs.
-run_profile: 0
-n_profile: 7
+# Stage 4b loss slice: 1-D loss scans around the optimum with the other
+# parameters HELD FIXED (not reoptimized) -- a loss slice, NOT a true profile
+# likelihood. Suggestive of practical (non-)identifiability but its edge-rise
+# values are not formal confidence thresholds. ~2*n_slice HSPICE sims per
+# active parameter -> enable for final/publication runs. (run_profile/n_profile
+# are still honored as legacy aliases.)
+run_slice: 0
+n_slice: 7
 # Two-pass refit: auto_active=1 + identifiability_csv=<previous run's
 # identifiability_report.csv> drops non-identifiable params from the active set.
 auto_active: 0

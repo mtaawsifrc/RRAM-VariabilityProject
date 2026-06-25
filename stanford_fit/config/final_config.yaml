@@ -43,9 +43,10 @@ regime_map_csv: ''
 mechanism_weighting: 1
 nonbulk_weight: 0.3
 
-# Operational identifiability: profile likelihood ON for final runs.
-run_profile: 1
-n_profile: 7
+# Operational identifiability: 1-D loss slice ON for final runs (fixed nuisance,
+# not a true profile likelihood).
+run_slice: 1
+n_slice: 7
 auto_active: 0
 
 # Cross-cycle CIs are produced by 06_run_variability.py (needs the ensemble);
